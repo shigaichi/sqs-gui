@@ -1,0 +1,16 @@
+{{/* layout: 共通 head/header/footer を組み立て、コンテンツ差し込み */}}
+{{define "layout"}}
+<!DOCTYPE html>
+<html lang="en">
+  {{template "head" .}}
+  <body>
+    {{template "siteHeader" .}}
+
+    <main class="container">
+      {{template "content" .}}
+    </main>
+
+    {{template "siteFooter" .}}
+  </body>
+</html>
+{{end}}
