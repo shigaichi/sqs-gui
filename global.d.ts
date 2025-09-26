@@ -1,2 +1,2 @@
-// CSSをtsでimportするのに必要
-declare module '*.css';
+// Required so TypeScript accepts importing CSS modules.
+declare module "*.css";

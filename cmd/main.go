@@ -2,56 +2,95 @@ package main
 
 import (
 	"context"
-	"errors"
-	"github.com/aws/aws-sdk-go-v2/service/sqs"
-	"github.com/shigaichi/sqs-gui/internal"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/cockroachdb/errors"
+	"github.com/shigaichi/sqs-gui/internal"
 )
 
 func main() {
-	q := sqs.Client{} // TODO: 適切に生成
-	x := internal.NewSqsRepository(q)
-	s := internal.NewSqsService(x)
-	h := internal.NewHandler(s)
-	i := internal.NewRouteImpl(h)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
 
-	r, err := i.InitRoute()
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	slog.SetDefault(logger)
+
+	sqsClient, err := newSQSClient(ctx)
 	if err != nil {
-		// FIXME: error handling
-		panic(err)
+		slog.Error("failed to initialize SQS client", slog.Any("error", err))
+		os.Exit(1)
 	}
 
-	srv := http.Server{
+	repo := internal.NewSqsRepository(sqsClient)
+	service := internal.NewSqsService(repo)
+	handler := internal.NewHandler(service)
+
+	routerImpl := internal.NewRouteImpl(handler)
+	router, err := routerImpl.InitRoute()
+	if err != nil {
+		slog.Error("failed to initialize router", slog.Any("error", err))
+		os.Exit(1)
+	}
+
+	srv := &http.Server{
 		Addr:              ":8080",
-		Handler:           r,
+		Handler:           router,
 		ReadHeaderTimeout: 3 * time.Minute,
+		ReadTimeout:       1 * time.Minute,
+		WriteTimeout:      1 * time.Minute,
 	}
 
+	serverErrCh := make(chan error, 1)
 	go func() {
-		if err := srv.ListenAndServe(); err != nil {
-			if errors.Is(err, http.ErrServerClosed) {
-				println("shutting down server")
-			} else {
-				println("Failed to start server")
-			}
-		}
+		serverErrCh <- srv.ListenAndServe()
 	}()
 
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-
-	<-c
-
-	var wait = 30 * time.Second
-
-	ctx, cancel := context.WithTimeout(context.Background(), wait)
-	defer cancel()
-	err = srv.Shutdown(ctx)
-	if err != nil {
-		println("Failed to shutdown server")
+	select {
+	case <-ctx.Done():
+		slog.Info("received SIGINT; shutting down server")
+	case err := <-serverErrCh:
+		if errors.Is(err, http.ErrServerClosed) {
+			slog.Info("server shut down gracefully")
+		} else if err != nil {
+			slog.Error("failed to start server", slog.Any("error", err))
+		}
 	}
-	println("Shutting down")
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		slog.Error("failed to shut down server", slog.Any("error", err))
+	}
+
+	slog.Info("server stopped")
+}
+
+func newSQSClient(ctx context.Context) (*sqs.Client, error) {
+	region := os.Getenv("AWS_REGION")
+	if region == "" {
+		region = "us-east-1"
+	}
+
+	endpoint := os.Getenv("AWS_SQS_ENDPOINT")
+
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to load AWS configuration")
+	}
+
+	client := sqs.NewFromConfig(cfg, func(o *sqs.Options) {
+		if endpoint != "" {
+			o.BaseEndpoint = aws.String(endpoint)
+		}
+	})
+	return client, nil
 }

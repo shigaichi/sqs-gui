@@ -1,8 +1,10 @@
 {{define "siteHeader"}}
-    <header class="site-header">
-        <div class="container header-inner">
-            <div class="brand">Go html/template Sample</div>
-            <nav class="nav">
+    <header class="site-header bg-slate-900 text-slate-100">
+        <div class="container mx-auto flex flex-col gap-3 px-6 py-6 sm:flex-row sm:items-center sm:justify-between">
+            <a class="text-xl font-semibold tracking-wide" href="/queues">SQS GUI</a>
+            <nav class="flex gap-4 text-sm font-medium">
+                <a class="transition hover:text-white" href="/queues">Queues</a>
+                <a class="transition hover:text-white" href="/create-queue">Create queue</a>
             </nav>
         </div>
     </header>

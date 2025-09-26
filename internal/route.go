@@ -1,16 +1,17 @@
 package internal
 
 import (
-	"github.com/cockroachdb/errors"
-	"github.com/olivere/vite"
-	"github.com/shigaichi/sqs-gui"
 	"html/template"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/cockroachdb/errors"
+	"github.com/olivere/vite"
+	"github.com/shigaichi/sqs-gui"
 )
 
 var (
@@ -31,15 +32,11 @@ func NewRouteImpl(h Handler) *RouteImpl {
 }
 
 func (i RouteImpl) InitRoute() (http.Handler, error) {
-	// FIXME: リファクタリング
-	// FIXME: error handling
-	err := loadTemplate("queues", filepath.Join("templates", "pages", "queues.gohtml"))
-	if err != nil {
-		return nil, errors.Wrap(err, "loading templates")
+	if err := loadTemplate("queues", filepath.Join("templates", "pages", "queues.gohtml")); err != nil {
+		return nil, errors.Wrap(err, "failed to load queues template")
 	}
-	err = loadTemplate("create-queue", filepath.Join("templates", "pages", "create-queue.gohtml"))
-	if err != nil {
-		return nil, errors.Wrap(err, "loading templates")
+	if err := loadTemplate("create-queue", filepath.Join("templates", "pages", "create-queue.gohtml")); err != nil {
+		return nil, errors.Wrap(err, "failed to load create-queue template")
 	}
 
 	isDev := os.Getenv("DEV_MODE") == "true"
@@ -54,29 +51,32 @@ func (i RouteImpl) InitRoute() (http.Handler, error) {
 		dist := sqs_gui.Dist
 		distFS, err := fs.Sub(dist, "dist")
 		if err != nil {
-			// FIXME: error handling
 			return nil, errors.Wrapf(err, "creating sub-filesystem for 'dist' directory: %v", err)
 		}
 		viteConfig.FS = distFS
 
 	}
 
-	// FIXME: リファクタリング
-	viteConfig.ViteEntry = "static/js/app.ts"
-	h1, _ := vite.HTMLFragment(viteConfig)
-	fragments["assets/js/app.ts"] = h1
-	viteConfig.ViteEntry = "assets/js/queues.ts"
-	h2, _ := vite.HTMLFragment(viteConfig)
-	fragments["assets/js/queues.ts"] = h2
-	viteConfig.ViteEntry = "assets/js/create_queue.ts"
-	h3, _ := vite.HTMLFragment(viteConfig)
-	fragments["assets/js/create_queue.ts"] = h3
+	entries := []string{
+		"assets/js/app.ts",
+		"assets/js/queues.ts",
+		"assets/js/create_queue.ts",
+	}
+
+	for _, entry := range entries {
+		viteConfig.ViteEntry = entry
+		fragment, err := vite.HTMLFragment(viteConfig)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to build %s fragment", entry)
+		}
+		fragments[entry] = fragment
+	}
 
 	mux := http.NewServeMux()
 
 	if !isDev {
-		// 静的ファイル
-		// isDevの場合はviteサーバーへアクセスするため設定不要
+		// Serve static files from the embedded distribution when not in dev mode.
+		// In development Vite serves assets directly, so no handler is required here.
 		f := http.FileServer(http.FS(viteConfig.FS))
 		mux.Handle("/assets/", f)
 	} else {
@@ -85,7 +85,9 @@ func (i RouteImpl) InitRoute() (http.Handler, error) {
 	}
 
 	mux.HandleFunc("/queues", i.h.QueuesHandler)
-	mux.HandleFunc("/create-queue", i.h.CreateQueueHandler)
+	mux.HandleFunc("GET /create-queue", i.h.GetCreateQueueHandler)
+	mux.HandleFunc("POST /create-queue", i.h.PostCreateQueueHandler)
+	mux.HandleFunc("/queues/{url}", i.h.QueueHandler)
 
 	return logMiddleware(mux), nil
 }
@@ -94,22 +96,33 @@ func logMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		next.ServeHTTP(w, r)
-		log.Printf("%s %s %s", r.Method, r.URL.Path, time.Since(start))
+		slog.Info("request completed",
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.Duration("duration", time.Since(start)),
+		)
 	})
 }
 
 func loadTemplate(tmplName string, filename ...string) error {
-	tmpl, err := template.New("layout").ParseFiles(
+	base := template.New("layout")
+	layoutFiles := []string{
 		filepath.Join("templates", "layout.gohtml"),
 		filepath.Join("templates", "partials", "head.gohtml"),
 		filepath.Join("templates", "partials", "header.gohtml"),
 		filepath.Join("templates", "partials", "footer.gohtml"),
-	)
-	if err != nil {
-		return errors.Wrap(err, "parse layout failed")
 	}
 
-	templates[tmplName] = template.Must(tmpl.ParseFiles(filename...))
+	tmpl, err := base.ParseFiles(layoutFiles...)
+	if err != nil {
+		return errors.Wrap(err, "failed to parse layout")
+	}
 
+	tmpl, err = tmpl.ParseFiles(filename...)
+	if err != nil {
+		return errors.Wrap(err, "failed to parse page template")
+	}
+
+	templates[tmplName] = tmpl
 	return nil
 }

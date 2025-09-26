@@ -1,0 +1,9 @@
+services:
+  elasticmq:
+    image: softwaremill/elasticmq-native:1.6.15
+    container_name: elasticmq
+    ports:
+      - "9324:9324" # SQS-compatible REST API
+      - "9325:9325" # Optional web UI
+    volumes:
+      - ./elasticmq.conf:/opt/elasticmq.conf:ro  # Startup configuration

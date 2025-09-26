@@ -1,6 +1,72 @@
 {{define "content"}}
-    <section>
-        {{/* TODO:       */}}
-        queuesページ
+    <section class="space-y-6" data-page="queues">
+        <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <h1 class="text-2xl font-semibold text-slate-900">Queues</h1>
+                <p class="text-sm text-slate-600">Manage your SQS queues and review their current status.</p>
+            </div>
+            <a class="inline-flex items-center justify-center rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
+               href="/create-queue">
+                Create queue
+            </a>
+        </header>
+
+        {{if .FlashMessage}}
+            <p class="rounded border border-green-400 bg-green-50 px-3 py-2 text-sm text-green-700" data-queue-flash>
+                Queue "{{.FlashMessage}}" was created successfully.
+            </p>
+        {{end}}
+
+        {{if .ErrorMessage}}
+            <p class="rounded border border-red-400 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {{.ErrorMessage}}
+            </p>
+        {{end}}
+
+        <div class="flex flex-col gap-2">
+            <label class="text-sm font-medium text-slate-700" for="queue-filter">Filter by name</label>
+            <input class="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                   id="queue-filter"
+                   name="queue-filter"
+                   type="search"
+                   placeholder="Search queues"/>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200 text-left text-sm" data-queue-table>
+                <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                    <tr>
+                        <th class="px-4 py-3">Name</th>
+                        <th class="px-4 py-3">Type</th>
+                        <th class="px-4 py-3">Created</th>
+                        <th class="px-4 py-3">Messages Available</th>
+                        <th class="px-4 py-3">Messages In Flight</th>
+                        <th class="px-4 py-3">Encryption</th>
+                        <th class="px-4 py-3">Content-based Dedup</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200 bg-white" id="queue-table-body">
+                {{if .Queues}}
+                    {{range .Queues}}
+                        <tr class="hover:bg-slate-50" data-queue-row data-queue-name="{{.Name}}">
+                            <td class="px-4 py-3 font-medium text-slate-900">
+                                <a class="text-blue-600 hover:underline" href="/queues/{{.URL}}">{{.Name}}</a>
+                            </td>
+                            <td class="px-4 py-3 text-slate-700">{{.Type}}</td>
+                            <td class="px-4 py-3 text-slate-700">{{.CreatedAt}}</td>
+                            <td class="px-4 py-3 text-slate-700">{{.MessagesAvailable}}</td>
+                            <td class="px-4 py-3 text-slate-700">{{.MessagesInFlight}}</td>
+                            <td class="px-4 py-3 text-slate-700">{{.Encryption}}</td>
+                            <td class="px-4 py-3 text-slate-700">{{.ContentBasedDeduplication}}</td>
+                        </tr>
+                    {{end}}
+                {{else}}
+                    <tr>
+                        <td class="px-4 py-6 text-center text-slate-500" colspan="8">No queues found.</td>
+                    </tr>
+                {{end}}
+                </tbody>
+            </table>
+        </div>
     </section>
 {{end}}

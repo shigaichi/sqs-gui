@@ -1,6 +1,97 @@
 {{define "content"}}
-    <section class="text-3xl font-bold underline">
-        {{/* TODO:       */}}
-        create-queueページ
+    <section class="mx-auto max-w-2xl space-y-6" data-page="create-queue">
+        <div>
+            <h1 class="text-2xl font-semibold text-slate-900">Create queue</h1>
+            <p class="text-sm text-slate-600">Configure the queue name and core delivery parameters.</p>
+        </div>
+
+        {{if .ErrorMessage}}
+            <p class="rounded border border-red-400 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {{.ErrorMessage}}
+            </p>
+        {{end}}
+
+        <form class="space-y-5" method="post">
+            <div class="flex flex-col gap-2">
+                <label class="text-sm font-medium text-slate-700" for="queue-name">Queue name</label>
+                <input class="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                       id="queue-name"
+                       name="queue_name"
+                       type="text"
+                       value="{{.Form.Name}}"
+                       placeholder="e.g. orders"
+                       required
+                       minlength="1"
+                       maxlength="80"/>
+                <p class="text-xs text-slate-500">FIFO queues must end with <code>.fifo</code>.</p>
+            </div>
+
+            <div class="flex flex-col gap-2">
+                <label class="text-sm font-medium text-slate-700" for="queue-type">Queue type</label>
+                <select class="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                        id="queue-type"
+                        name="queue_type">
+                    {{range .QueueTypes}}
+                        <option value="{{.Value}}" {{if eq $.Form.Type .Value}}selected{{end}}>{{.Label}}</option>
+                    {{end}}
+                </select>
+            </div>
+
+            <fieldset class="grid gap-4 sm:grid-cols-3">
+                <div class="flex flex-col gap-2">
+                    <label class="text-sm font-medium text-slate-700" for="delay-seconds">Delay seconds</label>
+                    <input class="rounded border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                           id="delay-seconds"
+                           name="delay_seconds"
+                           type="number"
+                           min="0"
+                           max="900"
+                           value="{{.Form.DelaySeconds}}"
+                           placeholder="0"/>
+                    <p class="text-xs text-slate-500">Delivery delay for newly sent messages (0-900).</p>
+                </div>
+                <div class="flex flex-col gap-2">
+                    <label class="text-sm font-medium text-slate-700" for="retention-period">Message retention (seconds)</label>
+                    <input class="rounded border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                           id="retention-period"
+                           name="message_retention_period"
+                           type="number"
+                           min="60"
+                           max="1209600"
+                           value="{{.Form.MessageRetentionPeriod}}"
+                           placeholder="345600"/>
+                    <p class="text-xs text-slate-500">Defaults to 4 days (345600 seconds).</p>
+                </div>
+                <div class="flex flex-col gap-2">
+                    <label class="text-sm font-medium text-slate-700" for="visibility-timeout">Visibility timeout (seconds)</label>
+                    <input class="rounded border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                           id="visibility-timeout"
+                           name="visibility_timeout"
+                           type="number"
+                           min="0"
+                           max="43200"
+                           value="{{.Form.VisibilityTimeout}}"
+                           placeholder="30"/>
+                    <p class="text-xs text-slate-500">Time to hide received messages from other consumers.</p>
+                </div>
+            </fieldset>
+
+            <div class="flex items-center gap-3">
+                <input class="h-4 w-4 rounded border border-slate-300 text-blue-600 focus:ring-blue-500"
+                       id="content-deduplication"
+                       name="content_deduplication"
+                       type="checkbox"
+                       {{if .Form.ContentBasedDedup}}checked{{end}}/>
+                <label class="text-sm text-slate-700" for="content-deduplication">Enable content-based deduplication (FIFO only)</label>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <button class="inline-flex items-center justify-center rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                        type="submit">
+                    Create queue
+                </button>
+                <a class="text-sm text-blue-600 hover:underline" href="/queues">Cancel</a>
+            </div>
+        </form>
     </section>
 {{end}}
