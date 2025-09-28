@@ -24,6 +24,15 @@ type QueueSummary struct {
 	ContentBasedDeduplication bool
 }
 
+// QueueDetail provides an extended view of a queue, including raw attributes and tags.
+type QueueDetail struct {
+	QueueSummary
+	Arn            string
+	LastModifiedAt time.Time
+	Attributes     map[string]string
+	Tags           map[string]string
+}
+
 // CreateQueueInput gathers the parameters necessary to create a queue.
 type CreateQueueInput struct {
 	Name                      string

@@ -12,6 +12,7 @@ import (
 type SqsService interface {
 	Queues(ctx context.Context) ([]QueueSummary, error)
 	CreateQueue(ctx context.Context, input CreateQueueInput) (CreateQueueResult, error)
+	QueueDetail(ctx context.Context, queueURL string) (QueueDetail, error)
 }
 
 // SqsServiceImpl is the concrete service implementation.
@@ -88,4 +89,13 @@ func (s *SqsServiceImpl) CreateQueue(ctx context.Context, input CreateQueueInput
 	}
 
 	return CreateQueueResult{QueueURL: queueURL}, nil
+}
+
+// QueueDetail returns detailed information for a specific queue URL.
+func (s *SqsServiceImpl) QueueDetail(ctx context.Context, queueURL string) (QueueDetail, error) {
+	if strings.TrimSpace(queueURL) == "" {
+		return QueueDetail{}, errors.New("queue url is required")
+	}
+
+	return s.repo.GetQueueDetail(ctx, queueURL)
 }

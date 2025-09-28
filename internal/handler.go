@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -45,6 +46,38 @@ type queuesPageData struct {
 	ViteTags     template.HTML
 	FlashMessage string
 	ErrorMessage string
+}
+
+type queuePageData struct {
+	Title    string
+	Queue    queueDetailView
+	ViteTags template.HTML
+}
+
+type queueDetailView struct {
+	Name                      string
+	URL                       string
+	EscapedURL                string
+	Arn                       string
+	Type                      string
+	CreatedAt                 string
+	LastModifiedAt            string
+	MessagesAvailable         string
+	MessagesInFlight          string
+	Encryption                string
+	ContentBasedDeduplication string
+	Attributes                []queueAttributeView
+	Tags                      []queueTagView
+}
+
+type queueAttributeView struct {
+	Key   string
+	Value string
+}
+
+type queueTagView struct {
+	Key   string
+	Value string
 }
 
 type queueTypeOption struct {
@@ -199,12 +232,79 @@ func (h *HandlerImpl) createQueueErrorData(form createQueueForm, err error) crea
 }
 
 func (h *HandlerImpl) QueueHandler(w http.ResponseWriter, r *http.Request) {
-	queueURL, err := url.QueryUnescape(r.PathValue("url"))
+	encodedURL := r.PathValue("url")
+	queueURL, err := url.QueryUnescape(encodedURL)
 	if err != nil {
 		http.Error(w, "invalid queue url", http.StatusBadRequest)
 		return
 	}
-	slog.Debug(queueURL)
+	if strings.TrimSpace(queueURL) == "" {
+		http.Error(w, "queue url is required", http.StatusBadRequest)
+		return
+	}
+
+	queueDetail, err := h.s.QueueDetail(r.Context(), queueURL)
+	if err != nil {
+		slog.Error("failed to load queue detail", slog.String("queue_url", queueURL), slog.Any("error", err))
+		http.Error(w, "failed to load queue detail", http.StatusInternalServerError)
+		return
+	}
+
+	attributes := make([]queueAttributeView, 0, len(queueDetail.Attributes))
+	for key, value := range queueDetail.Attributes {
+		attributes = append(attributes, queueAttributeView{
+			Key:   key,
+			Value: value,
+		})
+	}
+	sort.Slice(attributes, func(i, j int) bool {
+		return attributes[i].Key < attributes[j].Key
+	})
+
+	tags := make([]queueTagView, 0, len(queueDetail.Tags))
+	for key, value := range queueDetail.Tags {
+		tags = append(tags, queueTagView{Key: key, Value: value})
+	}
+	sort.Slice(tags, func(i, j int) bool {
+		return tags[i].Key < tags[j].Key
+	})
+
+	createdAt := "-"
+	if !queueDetail.CreatedAt.IsZero() {
+		createdAt = queueDetail.CreatedAt.Format("2006-01-02 15:04:05 MST")
+	}
+
+	lastModified := "-"
+	if !queueDetail.LastModifiedAt.IsZero() {
+		lastModified = queueDetail.LastModifiedAt.Format("2006-01-02 15:04:05 MST")
+	}
+
+	data := queuePageData{
+		Title: fmt.Sprintf("Queue %s", queueDetail.Name),
+		Queue: queueDetailView{
+			Name:                      queueDetail.Name,
+			URL:                       queueDetail.URL,
+			EscapedURL:                encodedURL,
+			Arn:                       queueDetail.Arn,
+			Type:                      strings.ToUpper(string(queueDetail.Type)),
+			CreatedAt:                 createdAt,
+			LastModifiedAt:            lastModified,
+			MessagesAvailable:         strconv.FormatInt(queueDetail.MessagesAvailable, 10),
+			MessagesInFlight:          strconv.FormatInt(queueDetail.MessagesInFlight, 10),
+			Encryption:                queueDetail.Encryption,
+			ContentBasedDeduplication: boolLabel(queueDetail.ContentBasedDeduplication),
+			Attributes:                attributes,
+			Tags:                      tags,
+		},
+		ViteTags: fragments["assets/js/queue.ts"].Tags,
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	if err := templates["queue"].Execute(w, data); err != nil {
+		slog.Error("failed to render queue template", slog.Any("error", err))
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
 }
 
 func queueTypeOptions() []queueTypeOption {

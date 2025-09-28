@@ -18,6 +18,7 @@ import (
 type SqsRepository interface {
 	ListQueues(ctx context.Context) ([]QueueSummary, error)
 	CreateQueue(ctx context.Context, input CreateQueueRepositoryInput) (string, error)
+	GetQueueDetail(ctx context.Context, queueURL string) (QueueDetail, error)
 }
 
 // SqsRepositoryImpl uses the AWS SDK to talk to SQS.
@@ -98,6 +99,48 @@ func (s *SqsRepositoryImpl) CreateQueue(ctx context.Context, input CreateQueueRe
 	return *resp.QueueUrl, nil
 }
 
+// GetQueueDetail retrieves full queue information, including attributes and tags.
+func (s *SqsRepositoryImpl) GetQueueDetail(ctx context.Context, queueURL string) (QueueDetail, error) {
+	resp, err := s.sqsClient.GetQueueAttributes(ctx, &sqs.GetQueueAttributesInput{
+		QueueUrl:       aws.String(queueURL),
+		AttributeNames: []types.QueueAttributeName{types.QueueAttributeNameAll},
+	})
+	if err != nil {
+		return QueueDetail{}, errors.Wrap(err, "failed to call GetQueueAttributes API")
+	}
+
+	attributes := make(map[string]string, len(resp.Attributes))
+	for key, value := range resp.Attributes {
+		attributes[key] = value
+	}
+
+	summary := buildQueueSummary(queueURL, attributes)
+	lastModified := parseUnixTime(attributes[string(types.QueueAttributeNameLastModifiedTimestamp)])
+	arn := attributes[string(types.QueueAttributeNameQueueArn)]
+
+	detail := QueueDetail{
+		QueueSummary:   summary,
+		Arn:            arn,
+		LastModifiedAt: lastModified,
+		Attributes:     attributes,
+	}
+
+	tagResp, err := s.sqsClient.ListQueueTags(ctx, &sqs.ListQueueTagsInput{QueueUrl: aws.String(queueURL)})
+	if err != nil {
+		slog.Warn("failed to retrieve queue tags", slog.String("queue_url", queueURL), slog.Any("error", err))
+	} else {
+		if len(tagResp.Tags) > 0 {
+			tags := make(map[string]string, len(tagResp.Tags))
+			for key, value := range tagResp.Tags {
+				tags[key] = value
+			}
+			detail.Tags = tags
+		}
+	}
+
+	return detail, nil
+}
+
 // buildQueueSummary normalises queue attributes for presentation.
 func buildQueueSummary(queueURL string, attributes map[string]string) QueueSummary {
 	name := queueURL
@@ -153,4 +196,19 @@ func parseInt64(raw string) int64 {
 	}
 
 	return value
+}
+
+// parseUnixTime converts seconds since epoch to time.Time.
+func parseUnixTime(raw string) time.Time {
+	if raw == "" {
+		return time.Time{}
+	}
+
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		slog.Debug("failed to parse timestamp", slog.String("value", raw), slog.Any("error", err))
+		return time.Time{}
+	}
+
+	return time.Unix(value, 0).UTC()
 }

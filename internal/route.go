@@ -35,6 +35,9 @@ func (i RouteImpl) InitRoute() (http.Handler, error) {
 	if err := loadTemplate("queues", filepath.Join("templates", "pages", "queues.gohtml")); err != nil {
 		return nil, errors.Wrap(err, "failed to load queues template")
 	}
+	if err := loadTemplate("queue", filepath.Join("templates", "pages", "queue.gohtml")); err != nil {
+		return nil, errors.Wrap(err, "failed to load queues template")
+	}
 	if err := loadTemplate("create-queue", filepath.Join("templates", "pages", "create-queue.gohtml")); err != nil {
 		return nil, errors.Wrap(err, "failed to load create-queue template")
 	}
@@ -61,6 +64,7 @@ func (i RouteImpl) InitRoute() (http.Handler, error) {
 		"assets/js/app.ts",
 		"assets/js/queues.ts",
 		"assets/js/create_queue.ts",
+		"assets/js/queue.ts",
 	}
 
 	for _, entry := range entries {
