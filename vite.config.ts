@@ -15,6 +15,7 @@ export default defineConfig({
 			input: {
 				app: resolve(__dirname, "assets/js/app.ts"),
 				queues: resolve(__dirname, "assets/js/queues.ts"),
+				queue: resolve(__dirname, "assets/js/queue.ts"),
 				create_queue: resolve(__dirname, "assets/js/create_queue.ts"),
 			},
 		},

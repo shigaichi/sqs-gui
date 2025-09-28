@@ -13,6 +13,8 @@ type SqsService interface {
 	Queues(ctx context.Context) ([]QueueSummary, error)
 	CreateQueue(ctx context.Context, input CreateQueueInput) (CreateQueueResult, error)
 	QueueDetail(ctx context.Context, queueURL string) (QueueDetail, error)
+	DeleteQueue(ctx context.Context, queueURL string) error
+	PurgeQueue(ctx context.Context, queueURL string) error
 }
 
 // SqsServiceImpl is the concrete service implementation.
@@ -98,4 +100,22 @@ func (s *SqsServiceImpl) QueueDetail(ctx context.Context, queueURL string) (Queu
 	}
 
 	return s.repo.GetQueueDetail(ctx, queueURL)
+}
+
+// DeleteQueue deletes the queue identified by queueURL.
+func (s *SqsServiceImpl) DeleteQueue(ctx context.Context, queueURL string) error {
+	if strings.TrimSpace(queueURL) == "" {
+		return errors.New("queue url is required")
+	}
+
+	return s.repo.DeleteQueue(ctx, queueURL)
+}
+
+// PurgeQueue removes all messages currently stored in the queue.
+func (s *SqsServiceImpl) PurgeQueue(ctx context.Context, queueURL string) error {
+	if strings.TrimSpace(queueURL) == "" {
+		return errors.New("queue url is required")
+	}
+
+	return s.repo.PurgeQueue(ctx, queueURL)
 }

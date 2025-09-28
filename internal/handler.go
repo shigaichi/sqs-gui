@@ -17,6 +17,8 @@ type Handler interface {
 	GetCreateQueueHandler(w http.ResponseWriter, r *http.Request)
 	PostCreateQueueHandler(w http.ResponseWriter, r *http.Request)
 	QueueHandler(w http.ResponseWriter, r *http.Request)
+	DeleteQueueHandler(w http.ResponseWriter, r *http.Request)
+	PurgeQueueHandler(w http.ResponseWriter, r *http.Request)
 }
 
 // HandlerImpl implements the HTTP handlers.
@@ -40,18 +42,24 @@ type queueView struct {
 	ContentBasedDeduplication string
 }
 
+type pageFlash struct {
+	Message string
+	Kind    string
+}
+
 type queuesPageData struct {
 	Title        string
 	Queues       []queueView
 	ViteTags     template.HTML
-	FlashMessage string
+	Flash        *pageFlash
 	ErrorMessage string
 }
 
 type queuePageData struct {
-	Title    string
-	Queue    queueDetailView
-	ViteTags template.HTML
+	Title        string
+	Queue        queueDetailView
+	ViteTags     template.HTML
+	FlashMessage string
 }
 
 type queueDetailView struct {
@@ -130,13 +138,25 @@ func (h *HandlerImpl) QueuesHandler(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	flash := r.URL.Query().Get("created")
+	var flash *pageFlash
+	query := r.URL.Query()
+	if created := strings.TrimSpace(query.Get("created")); created != "" {
+		flash = &pageFlash{
+			Message: fmt.Sprintf("Queue \"%s\" was created successfully.", created),
+			Kind:    "success",
+		}
+	} else if deleted := strings.TrimSpace(query.Get("deleted")); deleted != "" {
+		flash = &pageFlash{
+			Message: fmt.Sprintf("Queue \"%s\" was deleted successfully.", deleted),
+			Kind:    "success",
+		}
+	}
 
 	data := queuesPageData{
-		Title:        "Queues",
-		Queues:       viewQueues,
-		ViteTags:     fragments["assets/js/queues.ts"].Tags,
-		FlashMessage: flash,
+		Title:    "Queues",
+		Queues:   viewQueues,
+		ViteTags: fragments["assets/js/queues.ts"].Tags,
+		Flash:    flash,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -232,14 +252,12 @@ func (h *HandlerImpl) createQueueErrorData(form createQueueForm, err error) crea
 }
 
 func (h *HandlerImpl) QueueHandler(w http.ResponseWriter, r *http.Request) {
-	encodedURL := r.PathValue("url")
-	queueURL, err := url.QueryUnescape(encodedURL)
+	queueURL, status, err := h.queueURLFromRequest(r)
 	if err != nil {
-		http.Error(w, "invalid queue url", http.StatusBadRequest)
-		return
-	}
-	if strings.TrimSpace(queueURL) == "" {
-		http.Error(w, "queue url is required", http.StatusBadRequest)
+		if status == 0 {
+			status = http.StatusBadRequest
+		}
+		http.Error(w, err.Error(), status)
 		return
 	}
 
@@ -284,7 +302,7 @@ func (h *HandlerImpl) QueueHandler(w http.ResponseWriter, r *http.Request) {
 		Queue: queueDetailView{
 			Name:                      queueDetail.Name,
 			URL:                       queueDetail.URL,
-			EscapedURL:                encodedURL,
+			EscapedURL:                url.QueryEscape(queueURL),
 			Arn:                       queueDetail.Arn,
 			Type:                      strings.ToUpper(string(queueDetail.Type)),
 			CreatedAt:                 createdAt,
@@ -299,12 +317,77 @@ func (h *HandlerImpl) QueueHandler(w http.ResponseWriter, r *http.Request) {
 		ViteTags: fragments["assets/js/queue.ts"].Tags,
 	}
 
+	if r.URL.Query().Get("purged") == "1" {
+		data.FlashMessage = fmt.Sprintf("All messages in \"%s\" were purged successfully.", queueDetail.Name)
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	if err := templates["queue"].Execute(w, data); err != nil {
 		slog.Error("failed to render queue template", slog.Any("error", err))
 		http.Error(w, "template error", http.StatusInternalServerError)
 	}
+}
+
+// DeleteQueueHandler handles POST requests to delete a queue entirely.
+func (h *HandlerImpl) DeleteQueueHandler(w http.ResponseWriter, r *http.Request) {
+	queueURL, status, err := h.queueURLFromRequest(r)
+	if err != nil {
+		if status == 0 {
+			status = http.StatusBadRequest
+		}
+		http.Error(w, err.Error(), status)
+		return
+	}
+
+	if err := h.s.DeleteQueue(r.Context(), queueURL); err != nil {
+		slog.Error("failed to delete queue", slog.String("queue_url", queueURL), slog.Any("error", err))
+		http.Error(w, "failed to delete queue", http.StatusInternalServerError)
+		return
+	}
+
+	queueName := extractQueueName(queueURL)
+	redirectURL := fmt.Sprintf("/queues?deleted=%s", url.QueryEscape(queueName))
+	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+}
+
+// PurgeQueueHandler handles POST requests to purge all messages in a queue.
+func (h *HandlerImpl) PurgeQueueHandler(w http.ResponseWriter, r *http.Request) {
+	queueURL, status, err := h.queueURLFromRequest(r)
+	if err != nil {
+		if status == 0 {
+			status = http.StatusBadRequest
+		}
+		http.Error(w, err.Error(), status)
+		return
+	}
+
+	if err := h.s.PurgeQueue(r.Context(), queueURL); err != nil {
+		slog.Error("failed to purge queue", slog.String("queue_url", queueURL), slog.Any("error", err))
+		http.Error(w, "failed to purge queue", http.StatusInternalServerError)
+		return
+	}
+
+	redirectURL := fmt.Sprintf("/queues/%s?purged=1", url.QueryEscape(queueURL))
+	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+}
+
+func (h *HandlerImpl) queueURLFromRequest(r *http.Request) (string, int, error) {
+	encodedURL := r.PathValue("url")
+	if encodedURL == "" {
+		return "", http.StatusBadRequest, fmt.Errorf("queue url is required")
+	}
+
+	queueURL, err := url.QueryUnescape(encodedURL)
+	if err != nil {
+		return "", http.StatusBadRequest, fmt.Errorf("invalid queue url")
+	}
+
+	if strings.TrimSpace(queueURL) == "" {
+		return "", http.StatusBadRequest, fmt.Errorf("queue url is required")
+	}
+
+	return queueURL, 0, nil
 }
 
 func queueTypeOptions() []queueTypeOption {

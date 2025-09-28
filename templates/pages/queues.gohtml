@@ -11,10 +11,16 @@
             </a>
         </header>
 
-        {{if .FlashMessage}}
-            <p class="rounded border border-green-400 bg-green-50 px-3 py-2 text-sm text-green-700" data-queue-flash>
-                Queue "{{.FlashMessage}}" was created successfully.
-            </p>
+        {{if .Flash}}
+            {{if eq .Flash.Kind "error"}}
+                <p class="rounded border border-red-400 bg-red-50 px-3 py-2 text-sm text-red-700" data-queue-flash>
+                    {{.Flash.Message}}
+                </p>
+            {{else}}
+                <p class="rounded border border-green-400 bg-green-50 px-3 py-2 text-sm text-green-700" data-queue-flash>
+                    {{.Flash.Message}}
+                </p>
+            {{end}}
         {{end}}
 
         {{if .ErrorMessage}}

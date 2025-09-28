@@ -91,6 +91,8 @@ func (i RouteImpl) InitRoute() (http.Handler, error) {
 	mux.HandleFunc("/queues", i.h.QueuesHandler)
 	mux.HandleFunc("GET /create-queue", i.h.GetCreateQueueHandler)
 	mux.HandleFunc("POST /create-queue", i.h.PostCreateQueueHandler)
+	mux.HandleFunc("POST /queues/{url}/purge", i.h.PurgeQueueHandler)
+	mux.HandleFunc("POST /queues/{url}/delete", i.h.DeleteQueueHandler)
 	mux.HandleFunc("/queues/{url}", i.h.QueueHandler)
 
 	return logMiddleware(mux), nil

@@ -19,6 +19,8 @@ type SqsRepository interface {
 	ListQueues(ctx context.Context) ([]QueueSummary, error)
 	CreateQueue(ctx context.Context, input CreateQueueRepositoryInput) (string, error)
 	GetQueueDetail(ctx context.Context, queueURL string) (QueueDetail, error)
+	DeleteQueue(ctx context.Context, queueURL string) error
+	PurgeQueue(ctx context.Context, queueURL string) error
 }
 
 // SqsRepositoryImpl uses the AWS SDK to talk to SQS.
@@ -139,6 +141,26 @@ func (s *SqsRepositoryImpl) GetQueueDetail(ctx context.Context, queueURL string)
 	}
 
 	return detail, nil
+}
+
+// DeleteQueue deletes the specified queue.
+func (s *SqsRepositoryImpl) DeleteQueue(ctx context.Context, queueURL string) error {
+	_, err := s.sqsClient.DeleteQueue(ctx, &sqs.DeleteQueueInput{QueueUrl: aws.String(queueURL)})
+	if err != nil {
+		return errors.Wrap(err, "failed to call DeleteQueue API")
+	}
+
+	return nil
+}
+
+// PurgeQueue removes all messages from the specified queue.
+func (s *SqsRepositoryImpl) PurgeQueue(ctx context.Context, queueURL string) error {
+	_, err := s.sqsClient.PurgeQueue(ctx, &sqs.PurgeQueueInput{QueueUrl: aws.String(queueURL)})
+	if err != nil {
+		return errors.Wrap(err, "failed to call PurgeQueue API")
+	}
+
+	return nil
 }
 
 // buildQueueSummary normalises queue attributes for presentation.
