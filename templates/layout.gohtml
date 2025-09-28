@@ -1,0 +1,16 @@
+{{/* layout: compose shared head/header/footer and inject page content */}}
+{{define "layout"}}
+<!DOCTYPE html>
+<html lang="en">
+  {{template "head" .}}
+  <body>
+    {{template "siteHeader" .}}
+
+    <main class="container">
+      {{template "content" .}}
+    </main>
+
+    {{template "siteFooter" .}}
+  </body>
+</html>
+{{end}}
