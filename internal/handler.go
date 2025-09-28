@@ -2,6 +2,7 @@ package internal
 
 import (
 	"fmt"
+	"github.com/cockroachdb/errors"
 	"html/template"
 	"log/slog"
 	"net/http"
@@ -404,11 +405,11 @@ func parseOptionalInt32(raw string, min, max int32, message string) (*int32, err
 
 	value, err := strconv.ParseInt(raw, 10, 32)
 	if err != nil {
-		return nil, fmt.Errorf("%s", message)
+		return nil, errors.New(message)
 	}
 
 	if value < int64(min) || value > int64(max) {
-		return nil, fmt.Errorf("%s", message)
+		return nil, errors.New(message)
 	}
 
 	converted := int32(value)

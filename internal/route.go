@@ -36,7 +36,7 @@ func (i RouteImpl) InitRoute() (http.Handler, error) {
 		return nil, errors.Wrap(err, "failed to load queues template")
 	}
 	if err := loadTemplate("queue", filepath.Join("templates", "pages", "queue.gohtml")); err != nil {
-		return nil, errors.Wrap(err, "failed to load queues template")
+		return nil, errors.Wrap(err, "failed to load queue template")
 	}
 	if err := loadTemplate("create-queue", filepath.Join("templates", "pages", "create-queue.gohtml")); err != nil {
 		return nil, errors.Wrap(err, "failed to load create-queue template")
@@ -54,7 +54,7 @@ func (i RouteImpl) InitRoute() (http.Handler, error) {
 		dist := sqs_gui.Dist
 		distFS, err := fs.Sub(dist, "dist")
 		if err != nil {
-			return nil, errors.Wrapf(err, "creating sub-filesystem for 'dist' directory: %v", err)
+			return nil, errors.Wrap(err, "creating sub-filesystem for 'dist' directory")
 		}
 		viteConfig.FS = distFS
 
