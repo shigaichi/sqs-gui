@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"encoding/base64"
 	"log/slog"
 	"sort"
 	"strconv"
@@ -21,6 +22,9 @@ type SqsRepository interface {
 	GetQueueDetail(ctx context.Context, queueURL string) (QueueDetail, error)
 	DeleteQueue(ctx context.Context, queueURL string) error
 	PurgeQueue(ctx context.Context, queueURL string) error
+	SendMessage(ctx context.Context, input SendMessageRepositoryInput) error
+	ReceiveMessages(ctx context.Context, input ReceiveMessagesRepositoryInput) ([]ReceivedMessage, error)
+	DeleteMessage(ctx context.Context, input DeleteMessageRepositoryInput) error
 }
 
 // SqsRepositoryImpl uses the AWS SDK to talk to SQS.
@@ -32,6 +36,27 @@ type SqsRepositoryImpl struct {
 type CreateQueueRepositoryInput struct {
 	Name       string
 	Attributes map[string]string
+}
+
+type SendMessageRepositoryInput struct {
+	QueueURL       string
+	Body           string
+	MessageGroupID string
+	DelaySeconds   *int32
+	Attributes     map[string]string
+}
+
+// ReceiveMessagesRepositoryInput governs how ReceiveMessage API is called.
+type ReceiveMessagesRepositoryInput struct {
+	QueueURL        string
+	MaxMessages     int32
+	WaitTimeSeconds int32
+}
+
+// DeleteMessageRepositoryInput carries the data required to issue a DeleteMessage call.
+type DeleteMessageRepositoryInput struct {
+	QueueURL      string
+	ReceiptHandle string
 }
 
 // NewSqsRepository constructs a repository instance.
@@ -233,4 +258,152 @@ func parseUnixTime(raw string) time.Time {
 	}
 
 	return time.Unix(value, 0).UTC()
+}
+
+// SendMessage enqueues a message into the specified queue.
+func (s *SqsRepositoryImpl) SendMessage(ctx context.Context, input SendMessageRepositoryInput) error {
+	req := &sqs.SendMessageInput{
+		QueueUrl:    aws.String(input.QueueURL),
+		MessageBody: aws.String(input.Body),
+	}
+
+	if input.DelaySeconds != nil {
+		req.DelaySeconds = *input.DelaySeconds
+	}
+
+	messageGroupID := strings.TrimSpace(input.MessageGroupID)
+	if messageGroupID != "" {
+		req.MessageGroupId = aws.String(messageGroupID)
+	}
+
+	if len(input.Attributes) > 0 {
+		req.MessageAttributes = make(map[string]types.MessageAttributeValue, len(input.Attributes))
+		for key, value := range input.Attributes {
+			if strings.TrimSpace(key) == "" {
+				continue
+			}
+			req.MessageAttributes[key] = types.MessageAttributeValue{
+				DataType:    aws.String("String"),
+				StringValue: aws.String(value),
+			}
+		}
+	}
+
+	if _, err := s.sqsClient.SendMessage(ctx, req); err != nil {
+		return errors.Wrap(err, "failed to call SendMessage API")
+	}
+
+	return nil
+}
+
+// ReceiveMessages fetches messages from the specified queue using ReceiveMessage.
+func (s *SqsRepositoryImpl) ReceiveMessages(ctx context.Context, input ReceiveMessagesRepositoryInput) ([]ReceivedMessage, error) {
+	req := &sqs.ReceiveMessageInput{
+		QueueUrl:              aws.String(input.QueueURL),
+		MaxNumberOfMessages:   input.MaxMessages,
+		WaitTimeSeconds:       input.WaitTimeSeconds,
+		VisibilityTimeout:     0,
+		MessageAttributeNames: []string{"All"},
+		MessageSystemAttributeNames: []types.MessageSystemAttributeName{
+			types.MessageSystemAttributeNameApproximateReceiveCount,
+			types.MessageSystemAttributeNameSentTimestamp,
+			types.MessageSystemAttributeNameMessageGroupId,
+			types.MessageSystemAttributeNameMessageDeduplicationId,
+			types.MessageSystemAttributeNameSequenceNumber,
+		},
+	}
+
+	resp, err := s.sqsClient.ReceiveMessage(ctx, req)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to call ReceiveMessage API")
+	}
+
+	messages := make([]ReceivedMessage, 0, len(resp.Messages))
+	for _, msg := range resp.Messages {
+		receiveCount := int32(0)
+		if raw, ok := msg.Attributes[string(types.MessageSystemAttributeNameApproximateReceiveCount)]; ok {
+			if value, err := strconv.ParseInt(raw, 10, 32); err == nil {
+				receiveCount = int32(value)
+			}
+		}
+
+		customKeys := make([]string, 0, len(msg.MessageAttributes))
+		for key := range msg.MessageAttributes {
+			customKeys = append(customKeys, key)
+		}
+		sort.Strings(customKeys)
+
+		attributes := make([]MessageAttribute, 0, len(msg.MessageAttributes)+len(msg.Attributes))
+		for _, key := range customKeys {
+			value := msg.MessageAttributes[key]
+			if value.StringValue != nil {
+				attributes = append(attributes, MessageAttribute{Name: key, Value: aws.ToString(value.StringValue)})
+				continue
+			}
+			if len(value.StringListValues) > 0 {
+				attributes = append(attributes, MessageAttribute{Name: key, Value: strings.Join(value.StringListValues, ", ")})
+				continue
+			}
+			if len(value.BinaryValue) > 0 {
+				attributes = append(attributes, MessageAttribute{Name: key, Value: base64.StdEncoding.EncodeToString(value.BinaryValue)})
+				continue
+			}
+			if len(value.BinaryListValues) > 0 {
+				encoded := make([]string, len(value.BinaryListValues))
+				for i, b := range value.BinaryListValues {
+					encoded[i] = base64.StdEncoding.EncodeToString(b)
+				}
+				attributes = append(attributes, MessageAttribute{Name: key, Value: strings.Join(encoded, ", ")})
+			}
+		}
+
+		systemKeys := make([]string, 0, len(msg.Attributes))
+		for key := range msg.Attributes {
+			systemKeys = append(systemKeys, key)
+		}
+		sort.Strings(systemKeys)
+		for _, key := range systemKeys {
+			attributes = append(attributes, MessageAttribute{Name: key, Value: formatSystemAttribute(key, msg.Attributes[key])})
+		}
+
+		messageID := aws.ToString(msg.MessageId)
+		body := aws.ToString(msg.Body)
+		messages = append(messages, ReceivedMessage{
+			ID:            messageID,
+			Body:          body,
+			ReceiptHandle: aws.ToString(msg.ReceiptHandle),
+			ReceiveCount:  receiveCount,
+			Attributes:    attributes,
+		})
+	}
+
+	return messages, nil
+}
+
+// DeleteMessage removes a message from the queue using its receipt handle.
+func (s *SqsRepositoryImpl) DeleteMessage(ctx context.Context, input DeleteMessageRepositoryInput) error {
+	_, err := s.sqsClient.DeleteMessage(ctx, &sqs.DeleteMessageInput{
+		QueueUrl:      aws.String(input.QueueURL),
+		ReceiptHandle: aws.String(input.ReceiptHandle),
+	})
+	if err != nil {
+		return errors.Wrap(err, "failed to call DeleteMessage API")
+	}
+
+	return nil
+}
+
+func formatSystemAttribute(key, value string) string {
+	switch key {
+	case string(types.MessageSystemAttributeNameSentTimestamp),
+		string(types.MessageSystemAttributeNameApproximateFirstReceiveTimestamp):
+		if value == "" {
+			return value
+		}
+		if ts, err := strconv.ParseInt(value, 10, 64); err == nil {
+			return time.UnixMilli(ts).UTC().Format(time.RFC3339)
+		}
+	}
+
+	return value
 }

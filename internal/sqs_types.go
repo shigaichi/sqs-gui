@@ -47,3 +47,47 @@ type CreateQueueInput struct {
 type CreateQueueResult struct {
 	QueueURL string
 }
+
+// MessageAttribute represents a single name/value pair returned with a message.
+type MessageAttribute struct {
+	Name  string
+	Value string
+}
+
+// SendMessageInput carries the parameters necessary to enqueue a message.
+type SendMessageInput struct {
+	QueueURL       string
+	Body           string
+	MessageGroupID string
+	DelaySeconds   *int32
+	Attributes     []MessageAttribute
+}
+
+// ReceiveMessagesInput controls how messages are fetched from a queue.
+type ReceiveMessagesInput struct {
+	QueueURL            string
+	MaxMessages         int32
+	WaitTimeSeconds     int32
+	MaxMessagesProvided bool
+	WaitTimeProvided    bool
+}
+
+// ReceiveMessagesResult contains the messages retrieved from a queue.
+type ReceiveMessagesResult struct {
+	Messages []ReceivedMessage
+}
+
+// DeleteMessageInput carries the parameters required to remove a message from a queue.
+type DeleteMessageInput struct {
+	QueueURL      string
+	ReceiptHandle string
+}
+
+// ReceivedMessage represents a single message retrieved from SQS.
+type ReceivedMessage struct {
+	ID            string
+	Body          string
+	ReceiptHandle string
+	ReceiveCount  int32
+	Attributes    []MessageAttribute
+}

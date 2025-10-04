@@ -41,6 +41,9 @@ func (i RouteImpl) InitRoute() (http.Handler, error) {
 	if err := loadTemplate("create-queue", filepath.Join("templates", "pages", "create-queue.gohtml")); err != nil {
 		return nil, errors.Wrap(err, "failed to load create-queue template")
 	}
+	if err := loadTemplate("send-receive", filepath.Join("templates", "pages", "send-receive.gohtml")); err != nil {
+		return nil, errors.Wrap(err, "failed to load send-receive template")
+	}
 
 	isDev := os.Getenv("DEV_MODE") == "true"
 
@@ -65,6 +68,7 @@ func (i RouteImpl) InitRoute() (http.Handler, error) {
 		"assets/js/queues.ts",
 		"assets/js/create_queue.ts",
 		"assets/js/queue.ts",
+		"assets/js/send_receive.ts",
 	}
 
 	for _, entry := range entries {
@@ -94,6 +98,10 @@ func (i RouteImpl) InitRoute() (http.Handler, error) {
 	mux.HandleFunc("POST /queues/{url}/purge", i.h.PurgeQueueHandler)
 	mux.HandleFunc("POST /queues/{url}/delete", i.h.DeleteQueueHandler)
 	mux.HandleFunc("/queues/{url}", i.h.QueueHandler)
+	mux.HandleFunc("/queues/{url}/send-receive", i.h.SendReceive)
+	mux.HandleFunc("POST /queues/{url}/messages", i.h.SendMessageAPI)
+	mux.HandleFunc("POST /queues/{url}/messages/poll", i.h.ReceiveMessagesAPI)
+	mux.HandleFunc("POST /queues/{url}/messages/delete", i.h.DeleteMessageAPI)
 
 	return logMiddleware(mux), nil
 }

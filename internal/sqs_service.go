@@ -15,6 +15,9 @@ type SqsService interface {
 	QueueDetail(ctx context.Context, queueURL string) (QueueDetail, error)
 	DeleteQueue(ctx context.Context, queueURL string) error
 	PurgeQueue(ctx context.Context, queueURL string) error
+	SendMessage(ctx context.Context, input SendMessageInput) error
+	ReceiveMessages(ctx context.Context, input ReceiveMessagesInput) (ReceiveMessagesResult, error)
+	DeleteMessage(ctx context.Context, input DeleteMessageInput) error
 }
 
 // SqsServiceImpl is the concrete service implementation.
@@ -118,4 +121,110 @@ func (s *SqsServiceImpl) PurgeQueue(ctx context.Context, queueURL string) error 
 	}
 
 	return s.repo.PurgeQueue(ctx, queueURL)
+}
+
+// SendMessage validates input and delegates to the repository to enqueue a message.
+func (s *SqsServiceImpl) SendMessage(ctx context.Context, input SendMessageInput) error {
+	queueURL := strings.TrimSpace(input.QueueURL)
+	if queueURL == "" {
+		return errors.New("queue url is required")
+	}
+
+	if strings.TrimSpace(input.Body) == "" {
+		return errors.New("message body is required")
+	}
+
+	var delay *int32
+	if input.DelaySeconds != nil {
+		if *input.DelaySeconds < 0 || *input.DelaySeconds > 900 {
+			return errors.New("delay seconds must be between 0 and 900")
+		}
+		delay = input.DelaySeconds
+	}
+
+	attributes := make(map[string]string)
+	for _, attr := range input.Attributes {
+		name := strings.TrimSpace(attr.Name)
+		if name == "" {
+			continue
+		}
+		attributes[name] = attr.Value
+	}
+
+	return s.repo.SendMessage(ctx, SendMessageRepositoryInput{
+		QueueURL:       queueURL,
+		Body:           input.Body,
+		MessageGroupID: strings.TrimSpace(input.MessageGroupID),
+		DelaySeconds:   delay,
+		Attributes:     attributes,
+	})
+}
+
+// ReceiveMessages retrieves messages from SQS applying sensible defaults.
+func (s *SqsServiceImpl) ReceiveMessages(ctx context.Context, input ReceiveMessagesInput) (ReceiveMessagesResult, error) {
+	queueURL := strings.TrimSpace(input.QueueURL)
+	if queueURL == "" {
+		return ReceiveMessagesResult{}, errors.New("queue url is required")
+	}
+
+	const (
+		defaultMaxMessages int32 = 10
+		minMaxMessages     int32 = 1
+		maxMaxMessages     int32 = 10
+
+		defaultWaitTimeSeconds int32 = 20
+		minWaitTimeSeconds     int32 = 0
+		maxWaitTimeSeconds     int32 = 20
+	)
+
+	maxMessages := input.MaxMessages
+	if !input.MaxMessagesProvided {
+		maxMessages = defaultMaxMessages
+	} else {
+		if maxMessages < minMaxMessages {
+			maxMessages = minMaxMessages
+		} else if maxMessages > maxMaxMessages {
+			maxMessages = maxMaxMessages
+		}
+	}
+
+	waitTime := input.WaitTimeSeconds
+	if !input.WaitTimeProvided {
+		waitTime = defaultWaitTimeSeconds
+	} else {
+		if waitTime < minWaitTimeSeconds {
+			waitTime = minWaitTimeSeconds
+		} else if waitTime > maxWaitTimeSeconds {
+			waitTime = maxWaitTimeSeconds
+		}
+	}
+
+	messages, err := s.repo.ReceiveMessages(ctx, ReceiveMessagesRepositoryInput{
+		QueueURL:        queueURL,
+		MaxMessages:     maxMessages,
+		WaitTimeSeconds: waitTime,
+	})
+	if err != nil {
+		return ReceiveMessagesResult{}, err
+	}
+
+	return ReceiveMessagesResult{Messages: messages}, nil
+}
+
+// DeleteMessage removes a message from the queue using its receipt handle.
+func (s *SqsServiceImpl) DeleteMessage(ctx context.Context, input DeleteMessageInput) error {
+	queueURL := strings.TrimSpace(input.QueueURL)
+	if queueURL == "" {
+		return errors.New("queue url is required")
+	}
+
+	receiptHandle := strings.TrimSpace(input.ReceiptHandle)
+	if receiptHandle == "" {
+		return errors.New("receipt handle is required")
+	}
+
+	return s.repo.DeleteMessage(ctx, DeleteMessageRepositoryInput{
+		QueueURL:      queueURL,
+		ReceiptHandle: receiptHandle,
+	})
 }
