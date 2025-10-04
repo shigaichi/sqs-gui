@@ -52,19 +52,25 @@ Create queueへの遷移ボタンもある。
 
 メッセージの送受信を行う
 
+2つの機能を持つ。
+
 #### Send message 機能
 
-以下を設定可能。送信ボタンを押すと送信する
+以下を入力するフォームを持つ。送信ボタンを押すと送信する
 
 * Message body
 * Message group ID
 * Delivery delay
 * Message attributes
 
+![](send.png)
+
 #### Receive messages 機能
 
 Poll for messagesボタンを押下するとポーリングする。
 受信したメッセージの閲覧が可能。
+
+![](receive.png)
 
 ### Editページ
 

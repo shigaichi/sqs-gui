@@ -1,9 +1,11 @@
 package internal
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/cockroachdb/errors"
 	"html/template"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -20,6 +22,10 @@ type Handler interface {
 	QueueHandler(w http.ResponseWriter, r *http.Request)
 	DeleteQueueHandler(w http.ResponseWriter, r *http.Request)
 	PurgeQueueHandler(w http.ResponseWriter, r *http.Request)
+	SendReceive(w http.ResponseWriter, r *http.Request)
+	SendMessageAPI(w http.ResponseWriter, r *http.Request)
+	ReceiveMessagesAPI(w http.ResponseWriter, r *http.Request)
+	DeleteMessageAPI(w http.ResponseWriter, r *http.Request)
 }
 
 // HandlerImpl implements the HTTP handlers.
@@ -109,6 +115,66 @@ type createQueuePageData struct {
 	Form         createQueueForm
 	QueueTypes   []queueTypeOption
 	ErrorMessage string
+}
+
+type sendReceivePageData struct {
+	Title    string
+	Queue    sendReceiveQueueView
+	ViteTags template.HTML
+}
+
+type sendReceiveQueueView struct {
+	Name                  string
+	URL                   string
+	EscapedURL            string
+	Type                  string
+	SupportsMessageGroups bool
+}
+
+type messageAttributePayload struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+type sendMessageRequest struct {
+	Body           string                    `json:"body"`
+	MessageGroupID string                    `json:"messageGroupId"`
+	DelaySeconds   *int32                    `json:"delaySeconds"`
+	Attributes     []messageAttributePayload `json:"attributes"`
+}
+
+type sendMessageResponse struct {
+	Message string `json:"message"`
+}
+
+type receiveMessagesRequest struct {
+	MaxMessages     *int32 `json:"maxMessages"`
+	WaitTimeSeconds *int32 `json:"waitTimeSeconds"`
+}
+
+type receiveMessagesResponse struct {
+	Messages []receiveMessageItem `json:"messages"`
+}
+
+type deleteMessageRequest struct {
+	ReceiptHandle string `json:"receiptHandle"`
+}
+
+type deleteMessageResponse struct {
+	Message string `json:"message"`
+}
+
+type receiveMessageItem struct {
+	ID            string                     `json:"id"`
+	Body          string                     `json:"body"`
+	ReceiptHandle string                     `json:"receiptHandle"`
+	ReceiveCount  int32                      `json:"receiveCount"`
+	Attributes    []messageAttributeResponse `json:"attributes"`
+}
+
+type messageAttributeResponse struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }
 
 // QueuesHandler renders the queue listing page.
@@ -428,4 +494,199 @@ func extractQueueName(queueURL string) string {
 		return queueURL[idx+1:]
 	}
 	return queueURL
+}
+
+func (h *HandlerImpl) SendReceive(w http.ResponseWriter, r *http.Request) {
+	queueURL, status, err := h.queueURLFromRequest(r)
+	if err != nil {
+		if status == 0 {
+			status = http.StatusBadRequest
+		}
+		http.Error(w, err.Error(), status)
+		return
+	}
+
+	queueDetail, err := h.s.QueueDetail(r.Context(), queueURL)
+	if err != nil {
+		slog.Error("failed to load queue detail for send/receive", slog.String("queue_url", queueURL), slog.Any("error", err))
+		http.Error(w, "failed to load queue detail", http.StatusInternalServerError)
+		return
+	}
+
+	data := sendReceivePageData{
+		Title: fmt.Sprintf("Send and receive messages · %s", queueDetail.Name),
+		Queue: sendReceiveQueueView{
+			Name:                  queueDetail.Name,
+			URL:                   queueDetail.URL,
+			EscapedURL:            url.QueryEscape(queueURL),
+			Type:                  strings.ToUpper(string(queueDetail.Type)),
+			SupportsMessageGroups: queueDetail.Type == QueueTypeFIFO,
+		},
+		ViteTags: fragments["assets/js/send_receive.ts"].Tags,
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	if err := templates["send-receive"].Execute(w, data); err != nil {
+		slog.Error("failed to render send-receive template", slog.Any("error", err))
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
+}
+
+func (h *HandlerImpl) SendMessageAPI(w http.ResponseWriter, r *http.Request) {
+	queueURL, status, err := h.queueURLFromRequest(r)
+	if err != nil {
+		if status == 0 {
+			status = http.StatusBadRequest
+		}
+		writeJSONError(w, status, err.Error())
+		return
+	}
+
+	defer func() { _ = r.Body.Close() }()
+
+	var payload sendMessageRequest
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&payload); err != nil {
+		if errors.Is(err, io.EOF) {
+			writeJSONError(w, http.StatusBadRequest, "request body is required")
+			return
+		}
+		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	input := SendMessageInput{
+		QueueURL:       queueURL,
+		Body:           payload.Body,
+		MessageGroupID: payload.MessageGroupID,
+		DelaySeconds:   payload.DelaySeconds,
+		Attributes:     convertPayloadAttributes(payload.Attributes),
+	}
+
+	if err := h.s.SendMessage(r.Context(), input); err != nil {
+		slog.Error("failed to send message", slog.String("queue_url", queueURL), slog.Any("error", err))
+		writeJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, sendMessageResponse{Message: "Message sent successfully."})
+}
+
+func (h *HandlerImpl) ReceiveMessagesAPI(w http.ResponseWriter, r *http.Request) {
+	queueURL, status, err := h.queueURLFromRequest(r)
+	if err != nil {
+		if status == 0 {
+			status = http.StatusBadRequest
+		}
+		writeJSONError(w, status, err.Error())
+		return
+	}
+
+	defer func() { _ = r.Body.Close() }()
+
+	var payload receiveMessagesRequest
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&payload); err != nil && !errors.Is(err, io.EOF) {
+		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	input := ReceiveMessagesInput{QueueURL: queueURL}
+	if payload.MaxMessages != nil {
+		input.MaxMessages = *payload.MaxMessages
+	}
+	if payload.WaitTimeSeconds != nil {
+		input.WaitTimeSeconds = *payload.WaitTimeSeconds
+	}
+
+	result, err := h.s.ReceiveMessages(r.Context(), input)
+	if err != nil {
+		slog.Error("failed to receive messages", slog.String("queue_url", queueURL), slog.Any("error", err))
+		writeJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	response := receiveMessagesResponse{Messages: make([]receiveMessageItem, 0, len(result.Messages))}
+	for _, message := range result.Messages {
+		item := receiveMessageItem{
+			ID:            message.ID,
+			Body:          message.Body,
+			ReceiptHandle: message.ReceiptHandle,
+			ReceiveCount:  message.ReceiveCount,
+			Attributes:    make([]messageAttributeResponse, 0, len(message.Attributes)),
+		}
+		for _, attribute := range message.Attributes {
+			item.Attributes = append(item.Attributes, messageAttributeResponse(attribute))
+		}
+		response.Messages = append(response.Messages, item)
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func (h *HandlerImpl) DeleteMessageAPI(w http.ResponseWriter, r *http.Request) {
+	queueURL, status, err := h.queueURLFromRequest(r)
+	if err != nil {
+		if status == 0 {
+			status = http.StatusBadRequest
+		}
+		writeJSONError(w, status, err.Error())
+		return
+	}
+
+	defer func() { _ = r.Body.Close() }()
+
+	var payload deleteMessageRequest
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&payload); err != nil {
+		if errors.Is(err, io.EOF) {
+			writeJSONError(w, http.StatusBadRequest, "request body is required")
+			return
+		}
+		writeJSONError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	receiptHandle := strings.TrimSpace(payload.ReceiptHandle)
+	if receiptHandle == "" {
+		writeJSONError(w, http.StatusBadRequest, "receipt handle is required")
+		return
+	}
+
+	if err := h.s.DeleteMessage(r.Context(), DeleteMessageInput{QueueURL: queueURL, ReceiptHandle: receiptHandle}); err != nil {
+		slog.Error("failed to delete message", slog.String("queue_url", queueURL), slog.Any("error", err))
+		writeJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, deleteMessageResponse{Message: "Message deleted successfully."})
+}
+
+func convertPayloadAttributes(attrs []messageAttributePayload) []MessageAttribute {
+	if len(attrs) == 0 {
+		return nil
+	}
+
+	result := make([]MessageAttribute, 0, len(attrs))
+	for _, attr := range attrs {
+		result = append(result, MessageAttribute(attr))
+	}
+
+	return result
+}
+
+func writeJSON(w http.ResponseWriter, status int, payload any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		slog.Error("failed to encode json response", slog.Any("error", err))
+	}
+}
+
+func writeJSONError(w http.ResponseWriter, status int, message string) {
+	writeJSON(w, status, map[string]string{"error": message})
 }
