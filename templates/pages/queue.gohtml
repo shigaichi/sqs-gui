@@ -28,7 +28,7 @@
         {{end}}
 
         <section class="grid gap-6 lg:grid-cols-2">
-            <div class="space-y-4 rounded border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="space-y-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
                 <h2 class="text-lg font-semibold text-slate-900">Overview</h2>
                 <dl class="grid gap-4 sm:grid-cols-2">
                     <div>
@@ -54,7 +54,7 @@
                 </dl>
             </div>
 
-            <div class="space-y-4 rounded border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="space-y-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
                 <h2 class="text-lg font-semibold text-slate-900">Tags</h2>
                 {{if .Queue.Tags}}
                     <ul class="space-y-2 text-sm text-slate-800">
@@ -71,7 +71,7 @@
             </div>
         </section>
 
-        <section class="space-y-4 rounded border border-slate-200 bg-white p-4 shadow-sm">
+        <section class="space-y-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <div class="flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-slate-900">Attributes</h2>
             </div>
@@ -99,13 +99,14 @@
             {{end}}
         </section>
 
-        <section class="space-y-4 rounded border border-slate-200 bg-white p-4 shadow-sm">
+        <section class="space-y-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <h2 class="text-lg font-semibold text-slate-900">Queue actions</h2>
                 <div class="flex flex-wrap gap-3 text-sm">
-                    <a class="text-blue-600 hover:underline" href="/queues/{{.Queue.EscapedURL}}/edit">Edit</a>
-                    <a class="text-blue-600 hover:underline" href="/queues/{{.Queue.EscapedURL}}/send-receive">Send And Receive
-                        messages</a>
+                    <a class="inline-flex items-center justify-center rounded bg-blue-600 px-4 py-2 font-medium text-white shadow hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                       href="/queues/{{.Queue.EscapedURL}}/send-receive">
+                        Send and receive messages
+                    </a>
                 </div>
             </div>
 
@@ -125,20 +126,21 @@
 
         <div aria-labelledby="purge-queue-title"
              aria-modal="true"
-             class="fixed inset-0 z-50 hidden bg-slate-900/50 p-4"
+             class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-900/50 p-4"
              data-confirm-modal="purge"
              role="dialog">
             <form action="/queues/{{.Queue.EscapedURL}}/purge"
-                  class="mx-auto flex w-full max-w-md flex-col gap-4 rounded bg-white p-6 shadow-lg"
+                  class="w-full max-w-sm rounded bg-white px-5 pb-3 pt-5 shadow-lg"
                   method="POST">
-                <div class="space-y-2">
+                <div class="space-y-1.5">
                     <h3 class="text-lg font-semibold text-slate-900" id="purge-queue-title">Purge all messages?</h3>
                     <p class="text-sm text-slate-700">
                         This permanently deletes every message currently in
-                        <span class="font-medium">{{.Queue.Name}}</span>. Messages sent after the purge will not be affected.
+                        <span class="font-medium">{{.Queue.Name}}</span>.
+                        Messages sent after the purge will not be affected.
                     </p>
                 </div>
-                <div class="flex justify-end gap-3">
+                <div class="mt-4 flex justify-end gap-3">
                     <button class="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:border-slate-400 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300"
                             data-confirm-cancel
                             type="button">
@@ -154,19 +156,19 @@
 
         <div aria-labelledby="delete-queue-title"
              aria-modal="true"
-             class="fixed inset-0 z-50 hidden bg-slate-900/50 p-4"
+             class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 p-4"
              data-confirm-modal="delete"
              role="dialog">
             <form action="/queues/{{.Queue.EscapedURL}}/delete"
-                  class="mx-auto flex w-full max-w-md flex-col gap-4 rounded bg-white p-6 shadow-lg"
+                  class="w-full max-w-sm rounded bg-white px-5 pb-3 pt-5 shadow-lg"
                   method="POST">
-                <div class="space-y-2">
+                <div class="space-y-1.5">
                     <h3 class="text-lg font-semibold text-slate-900" id="delete-queue-title">Delete this queue?</h3>
                     <p class="text-sm text-slate-700">
                         Deleting <span class="font-medium">{{.Queue.Name}}</span> cannot be undone. Make sure no consumers rely on this queue before proceeding.
                     </p>
                 </div>
-                <div class="flex justify-end gap-3">
+                <div class="mt-4 flex justify-end gap-3">
                     <button class="rounded border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:border-slate-400 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300"
                             data-confirm-cancel
                             type="button">
