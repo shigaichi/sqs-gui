@@ -21,9 +21,10 @@
 - Tailwind utilities stay in `assets/css/app.css`; templates should remain thin, driven by handler-provided data.
 
 ## Testing Guidelines
-- No automated suite yet; place future Go tests as `_test.go` files beside sources and run `go test ./...`.
-- Manually exercise `/queues` and `/create-queue` in Dev Mode, checking terminal logs before merging.
-- Document any AWS mocks or fakes you add so reviewers can reproduce results.
+- テストはtestify/mock、testify/assertを使って実装します
+  - suiteは使わなくて良いです
+- 必要ならばテーブル駆動テストにしてください
+- nameなどは英語にしてください
 
 ## Commit & Pull Request Guidelines
 - Follow the concise, imperative commit style already in history (`Prepare the framework`); keep each commit focused.

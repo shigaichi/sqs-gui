@@ -12,6 +12,7 @@ linters:
     - staticcheck
     - unused
     - whitespace
+    - testifylint
   exclusions:
     generated: lax
     presets:
