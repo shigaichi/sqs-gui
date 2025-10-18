@@ -87,9 +87,11 @@ func (i RouteImpl) InitRoute() (http.Handler, error) {
 		// In development Vite serves assets directly, so no handler is required here.
 		f := http.FileServer(http.FS(viteConfig.FS))
 		mux.Handle("/assets/", f)
+		mux.Handle("/icon.svg", f)
 	} else {
-		publicDir := http.Dir("assets")
-		mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(publicDir)))
+		assetsDir := http.Dir("assets")
+		mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(assetsDir)))
+		mux.Handle("/icon.svg", http.FileServer(http.Dir("public")))
 	}
 
 	mux.HandleFunc("/queues", i.h.QueuesHandler)
