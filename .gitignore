@@ -29,3 +29,5 @@ sqs-gui
 .run/
 .serena/
 .vite
+coverage.html
+coverage.out

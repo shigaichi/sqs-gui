@@ -15,6 +15,18 @@ import (
 	"github.com/cockroachdb/errors"
 )
 
+type sqsAPI interface {
+	ListQueues(ctx context.Context, params *sqs.ListQueuesInput, optFns ...func(*sqs.Options)) (*sqs.ListQueuesOutput, error)
+	GetQueueAttributes(ctx context.Context, params *sqs.GetQueueAttributesInput, optFns ...func(*sqs.Options)) (*sqs.GetQueueAttributesOutput, error)
+	CreateQueue(ctx context.Context, params *sqs.CreateQueueInput, optFns ...func(*sqs.Options)) (*sqs.CreateQueueOutput, error)
+	ListQueueTags(ctx context.Context, params *sqs.ListQueueTagsInput, optFns ...func(*sqs.Options)) (*sqs.ListQueueTagsOutput, error)
+	DeleteQueue(ctx context.Context, params *sqs.DeleteQueueInput, optFns ...func(*sqs.Options)) (*sqs.DeleteQueueOutput, error)
+	PurgeQueue(ctx context.Context, params *sqs.PurgeQueueInput, optFns ...func(*sqs.Options)) (*sqs.PurgeQueueOutput, error)
+	SendMessage(ctx context.Context, params *sqs.SendMessageInput, optFns ...func(*sqs.Options)) (*sqs.SendMessageOutput, error)
+	ReceiveMessage(ctx context.Context, params *sqs.ReceiveMessageInput, optFns ...func(*sqs.Options)) (*sqs.ReceiveMessageOutput, error)
+	DeleteMessage(ctx context.Context, params *sqs.DeleteMessageInput, optFns ...func(*sqs.Options)) (*sqs.DeleteMessageOutput, error)
+}
+
 // SqsRepository centralises access to SQS APIs.
 type SqsRepository interface {
 	ListQueues(ctx context.Context) ([]QueueSummary, error)
@@ -29,7 +41,7 @@ type SqsRepository interface {
 
 // SqsRepositoryImpl uses the AWS SDK to talk to SQS.
 type SqsRepositoryImpl struct {
-	sqsClient *sqs.Client
+	sqsClient sqsAPI
 }
 
 // CreateQueueRepositoryInput holds attributes for CreateQueue.
@@ -60,7 +72,7 @@ type DeleteMessageRepositoryInput struct {
 }
 
 // NewSqsRepository constructs a repository instance.
-func NewSqsRepository(c *sqs.Client) SqsRepository {
+func NewSqsRepository(c sqsAPI) SqsRepository {
 	return &SqsRepositoryImpl{sqsClient: c}
 }
 

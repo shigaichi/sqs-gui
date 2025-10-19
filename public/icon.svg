@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">SQS GUI icon</title>
+  <desc id="desc">Queue stack with an arrow to represent Amazon SQS message flow.</desc>
+  <rect x="2" y="2" width="60" height="60" rx="12" fill="#0f172a" />
+  <g fill="#e2e8f0">
+    <rect x="16" y="18" width="20" height="6" rx="3" />
+    <rect x="16" y="29" width="20" height="6" rx="3" />
+    <rect x="16" y="40" width="20" height="6" rx="3" />
+  </g>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M36 32h10" stroke="#38bdf8" stroke-width="3" />
+    <path d="M43 27l7 7-7 7" stroke="#38bdf8" stroke-width="3" />
+    <path d="M12 18v28" stroke="#1e293b" stroke-width="2" />
+  </g>
+</svg>
