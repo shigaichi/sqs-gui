@@ -32,20 +32,35 @@ func NewRouteImpl(h Handler) *RouteImpl {
 }
 
 func (i RouteImpl) InitRoute() (http.Handler, error) {
-	if err := loadTemplate("queues", filepath.Join("templates", "pages", "queues.gohtml")); err != nil {
-		return nil, errors.Wrap(err, "failed to load queues template")
-	}
-	if err := loadTemplate("queue", filepath.Join("templates", "pages", "queue.gohtml")); err != nil {
-		return nil, errors.Wrap(err, "failed to load queue template")
-	}
-	if err := loadTemplate("create-queue", filepath.Join("templates", "pages", "create-queue.gohtml")); err != nil {
-		return nil, errors.Wrap(err, "failed to load create-queue template")
-	}
-	if err := loadTemplate("send-receive", filepath.Join("templates", "pages", "send-receive.gohtml")); err != nil {
-		return nil, errors.Wrap(err, "failed to load send-receive template")
-	}
-
 	isDev := os.Getenv("DEV_MODE") == "true"
+
+	if isDev {
+		if err := loadTemplateFromDisk("queues", filepath.Join("templates", "pages", "queues.gohtml")); err != nil {
+			return nil, errors.Wrap(err, "failed to load queues template")
+		}
+		if err := loadTemplateFromDisk("queue", filepath.Join("templates", "pages", "queue.gohtml")); err != nil {
+			return nil, errors.Wrap(err, "failed to load queue template")
+		}
+		if err := loadTemplateFromDisk("create-queue", filepath.Join("templates", "pages", "create-queue.gohtml")); err != nil {
+			return nil, errors.Wrap(err, "failed to load create-queue template")
+		}
+		if err := loadTemplateFromDisk("send-receive", filepath.Join("templates", "pages", "send-receive.gohtml")); err != nil {
+			return nil, errors.Wrap(err, "failed to load send-receive template")
+		}
+	} else {
+		if err := loadTemplateFromEmbed("queues", "pages/queues.gohtml"); err != nil {
+			return nil, errors.Wrap(err, "failed to load queues template")
+		}
+		if err := loadTemplateFromEmbed("queue", "pages/queue.gohtml"); err != nil {
+			return nil, errors.Wrap(err, "failed to load queue template")
+		}
+		if err := loadTemplateFromEmbed("create-queue", "pages/create-queue.gohtml"); err != nil {
+			return nil, errors.Wrap(err, "failed to load create-queue template")
+		}
+		if err := loadTemplateFromEmbed("send-receive", "pages/send-receive.gohtml"); err != nil {
+			return nil, errors.Wrap(err, "failed to load send-receive template")
+		}
+	}
 
 	viteConfig := vite.Config{
 		IsDev:        isDev,
@@ -120,7 +135,7 @@ func logMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func loadTemplate(tmplName string, filename ...string) error {
+func loadTemplateFromDisk(tmplName string, pageFile string) error {
 	base := template.New("layout")
 	layoutFiles := []string{
 		filepath.Join("templates", "layout.gohtml"),
@@ -128,17 +143,41 @@ func loadTemplate(tmplName string, filename ...string) error {
 		filepath.Join("templates", "partials", "header.gohtml"),
 		filepath.Join("templates", "partials", "footer.gohtml"),
 	}
-
 	tmpl, err := base.ParseFiles(layoutFiles...)
 	if err != nil {
 		return errors.Wrap(err, "failed to parse layout")
 	}
-
-	tmpl, err = tmpl.ParseFiles(filename...)
+	tmpl, err = tmpl.ParseFiles(pageFile)
 	if err != nil {
 		return errors.Wrap(err, "failed to parse page template")
 	}
+	templates[tmplName] = tmpl
+	return nil
+}
 
+func loadTemplateFromEmbed(tmplName string, pagePattern string) error {
+	tmplFS, err := fs.Sub(sqs_gui.Templates, "templates")
+	if err != nil {
+		return errors.Wrap(err, "sub FS for templates")
+	}
+
+	base := template.New("layout")
+	tmpl, err := base.ParseFS(
+		tmplFS,
+		"layout.gohtml",
+		"partials/*.gohtml",
+	)
+	if err != nil {
+		return errors.Wrap(err, "failed to parse layout (embed)")
+	}
+
+	tmpl, err = tmpl.ParseFS(
+		tmplFS,
+		pagePattern,
+	)
+	if err != nil {
+		return errors.Wrap(err, "failed to parse page template (embed)")
+	}
 	templates[tmplName] = tmpl
 	return nil
 }

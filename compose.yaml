@@ -7,3 +7,13 @@ services:
       - "9325:9325" # Optional web UI
     volumes:
       - ./elasticmq.conf:/opt/elasticmq.conf:ro  # Startup configuration
+#  gui:
+#    build:
+#      context: .
+#    container_name: gui
+#    ports:
+#      - "8080:8080"
+#    environment:
+#      AWS_SQS_ENDPOINT: http://elasticmq:9324
+#      AWS_ACCESS_KEY_ID: test          # ダミーでOK
+#      AWS_SECRET_ACCESS_KEY: test      # ダミーでOK
