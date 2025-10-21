@@ -51,11 +51,12 @@ type CreateQueueRepositoryInput struct {
 }
 
 type SendMessageRepositoryInput struct {
-	QueueURL       string
-	Body           string
-	MessageGroupID string
-	DelaySeconds   *int32
-	Attributes     map[string]string
+	QueueURL               string
+	Body                   string
+	MessageGroupID         string
+	MessageDeduplicationID string
+	DelaySeconds           *int32
+	Attributes             map[string]string
 }
 
 // ReceiveMessagesRepositoryInput governs how ReceiveMessage API is called.
@@ -286,6 +287,11 @@ func (s *SqsRepositoryImpl) SendMessage(ctx context.Context, input SendMessageRe
 	messageGroupID := strings.TrimSpace(input.MessageGroupID)
 	if messageGroupID != "" {
 		req.MessageGroupId = aws.String(messageGroupID)
+	}
+
+	messageDeduplicationID := strings.TrimSpace(input.MessageDeduplicationID)
+	if messageDeduplicationID != "" {
+		req.MessageDeduplicationId = aws.String(messageDeduplicationID)
 	}
 
 	if len(input.Attributes) > 0 {

@@ -423,10 +423,11 @@ func TestSqsRepositoryImpl_SendMessage(t *testing.T) {
 
 		delay := int32(5)
 		input := SendMessageRepositoryInput{
-			QueueURL:       "https://sqs.local/orders",
-			Body:           "hello",
-			MessageGroupID: " group-1 ",
-			DelaySeconds:   &delay,
+			QueueURL:               "https://sqs.local/orders",
+			Body:                   "hello",
+			MessageGroupID:         " group-1 ",
+			MessageDeduplicationID: " dedup-1 ",
+			DelaySeconds:           &delay,
 			Attributes: map[string]string{
 				"orderId": "123",
 				"ignored": "",
@@ -443,6 +444,8 @@ func TestSqsRepositoryImpl_SendMessage(t *testing.T) {
 				assert.Equal(t, int32(5), params.DelaySeconds)
 				require.NotNil(t, params.MessageGroupId)
 				assert.Equal(t, "group-1", aws.ToString(params.MessageGroupId))
+				require.NotNil(t, params.MessageDeduplicationId)
+				assert.Equal(t, "dedup-1", aws.ToString(params.MessageDeduplicationId))
 				require.Len(t, params.MessageAttributes, 2)
 				attr := params.MessageAttributes["orderId"]
 				assert.Equal(t, aws.String("String"), attr.DataType)

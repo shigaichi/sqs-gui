@@ -56,11 +56,12 @@ type MessageAttribute struct {
 
 // SendMessageInput carries the parameters necessary to enqueue a message.
 type SendMessageInput struct {
-	QueueURL       string
-	Body           string
-	MessageGroupID string
-	DelaySeconds   *int32
-	Attributes     []MessageAttribute
+	QueueURL               string
+	Body                   string
+	MessageGroupID         string
+	MessageDeduplicationID string
+	DelaySeconds           *int32
+	Attributes             []MessageAttribute
 }
 
 // ReceiveMessagesInput controls how messages are fetched from a queue.

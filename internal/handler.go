@@ -124,11 +124,12 @@ type sendReceivePageData struct {
 }
 
 type sendReceiveQueueView struct {
-	Name                  string
-	URL                   string
-	EscapedURL            string
-	Type                  string
-	SupportsMessageGroups bool
+	Name                         string
+	URL                          string
+	EscapedURL                   string
+	Type                         string
+	SupportsMessageGroups        bool
+	RequiresMessageDeduplication bool
 }
 
 type messageAttributePayload struct {
@@ -137,10 +138,11 @@ type messageAttributePayload struct {
 }
 
 type sendMessageRequest struct {
-	Body           string                    `json:"body"`
-	MessageGroupID string                    `json:"messageGroupId"`
-	DelaySeconds   *int32                    `json:"delaySeconds"`
-	Attributes     []messageAttributePayload `json:"attributes"`
+	Body                   string                    `json:"body"`
+	MessageGroupID         string                    `json:"messageGroupId"`
+	MessageDeduplicationID string                    `json:"messageDeduplicationId"`
+	DelaySeconds           *int32                    `json:"delaySeconds"`
+	Attributes             []messageAttributePayload `json:"attributes"`
 }
 
 type sendMessageResponse struct {
@@ -516,11 +518,12 @@ func (h *HandlerImpl) SendReceive(w http.ResponseWriter, r *http.Request) {
 	data := sendReceivePageData{
 		Title: fmt.Sprintf("Send and receive messages · %s", queueDetail.Name),
 		Queue: sendReceiveQueueView{
-			Name:                  queueDetail.Name,
-			URL:                   queueDetail.URL,
-			EscapedURL:            url.QueryEscape(queueURL),
-			Type:                  strings.ToUpper(string(queueDetail.Type)),
-			SupportsMessageGroups: queueDetail.Type == QueueTypeFIFO,
+			Name:                         queueDetail.Name,
+			URL:                          queueDetail.URL,
+			EscapedURL:                   url.QueryEscape(queueURL),
+			Type:                         strings.ToUpper(string(queueDetail.Type)),
+			SupportsMessageGroups:        queueDetail.Type == QueueTypeFIFO,
+			RequiresMessageDeduplication: queueDetail.Type == QueueTypeFIFO && !queueDetail.ContentBasedDeduplication,
 		},
 		ViteTags: fragments["assets/js/send_receive.ts"].Tags,
 	}
@@ -558,11 +561,12 @@ func (h *HandlerImpl) SendMessageAPI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	input := SendMessageInput{
-		QueueURL:       queueURL,
-		Body:           payload.Body,
-		MessageGroupID: payload.MessageGroupID,
-		DelaySeconds:   payload.DelaySeconds,
-		Attributes:     convertPayloadAttributes(payload.Attributes),
+		QueueURL:               queueURL,
+		Body:                   payload.Body,
+		MessageGroupID:         payload.MessageGroupID,
+		MessageDeduplicationID: payload.MessageDeduplicationID,
+		DelaySeconds:           payload.DelaySeconds,
+		Attributes:             convertPayloadAttributes(payload.Attributes),
 	}
 
 	if err := h.s.SendMessage(r.Context(), input); err != nil {
