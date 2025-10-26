@@ -1,5 +1,5 @@
 
-FROM node:25.0.0-bookworm-slim AS frontend-builder
+FROM node:24.10.0-bookworm-slim AS frontend-builder
 WORKDIR /app
 ENV PNPM_VERSION=10.18.3
 RUN npm install -g pnpm@${PNPM_VERSION}
