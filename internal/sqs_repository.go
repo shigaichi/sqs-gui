@@ -80,13 +80,11 @@ func NewSqsRepository(c sqsAPI) SqsRepository {
 // ListQueues fetches available queues.
 func (s *SqsRepositoryImpl) ListQueues(ctx context.Context) ([]QueueSummary, error) {
 	input := &sqs.ListQueuesInput{}
-	attributeNames := []types.QueueAttributeName{
+	baseAttributeNames := []types.QueueAttributeName{
 		types.QueueAttributeNameCreatedTimestamp,
 		types.QueueAttributeNameApproximateNumberOfMessages,
 		types.QueueAttributeNameApproximateNumberOfMessagesNotVisible,
-		types.QueueAttributeNameContentBasedDeduplication,
 		types.QueueAttributeNameKmsMasterKeyId,
-		types.QueueAttributeNameFifoQueue,
 	}
 
 	queues := make([]QueueSummary, 0)
@@ -98,6 +96,13 @@ func (s *SqsRepositoryImpl) ListQueues(ctx context.Context) ([]QueueSummary, err
 		}
 
 		for _, url := range resp.QueueUrls {
+			isFIFO := strings.HasSuffix(url, ".fifo")
+			attributeNames := make([]types.QueueAttributeName, len(baseAttributeNames), len(baseAttributeNames)+2)
+			copy(attributeNames, baseAttributeNames)
+			if isFIFO {
+				attributeNames = append(attributeNames, types.QueueAttributeNameFifoQueue, types.QueueAttributeNameContentBasedDeduplication)
+			}
+
 			attrs, err := s.sqsClient.GetQueueAttributes(ctx, &sqs.GetQueueAttributesInput{
 				QueueUrl:       aws.String(url),
 				AttributeNames: attributeNames,
@@ -107,7 +112,16 @@ func (s *SqsRepositoryImpl) ListQueues(ctx context.Context) ([]QueueSummary, err
 				continue
 			}
 
-			queues = append(queues, buildQueueSummary(url, attrs.Attributes))
+			attrMap := make(map[string]string, len(attrs.Attributes)+2)
+			for key, value := range attrs.Attributes {
+				attrMap[key] = value
+			}
+
+			if isFIFO {
+				attrMap[string(types.QueueAttributeNameFifoQueue)] = "true"
+			}
+
+			queues = append(queues, buildQueueSummary(url, attrMap))
 		}
 
 		if resp.NextToken == nil {

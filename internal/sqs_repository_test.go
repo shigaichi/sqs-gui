@@ -54,9 +54,7 @@ func TestSqsRepositoryImpl_ListQueues(t *testing.T) {
 					types.QueueAttributeNameCreatedTimestamp,
 					types.QueueAttributeNameApproximateNumberOfMessages,
 					types.QueueAttributeNameApproximateNumberOfMessagesNotVisible,
-					types.QueueAttributeNameContentBasedDeduplication,
 					types.QueueAttributeNameKmsMasterKeyId,
-					types.QueueAttributeNameFifoQueue,
 				}, input.AttributeNames)
 			}).
 			Return(&sqs.GetQueueAttributesOutput{
@@ -64,9 +62,7 @@ func TestSqsRepositoryImpl_ListQueues(t *testing.T) {
 					string(types.QueueAttributeNameCreatedTimestamp):                      "1700000000",
 					string(types.QueueAttributeNameApproximateNumberOfMessages):           "5",
 					string(types.QueueAttributeNameApproximateNumberOfMessagesNotVisible): "1",
-					string(types.QueueAttributeNameContentBasedDeduplication):             "false",
 					string(types.QueueAttributeNameKmsMasterKeyId):                        "",
-					string(types.QueueAttributeNameFifoQueue):                             "false",
 				},
 				ResultMetadata: middleware.Metadata{},
 			}, nil).
@@ -96,6 +92,14 @@ func TestSqsRepositoryImpl_ListQueues(t *testing.T) {
 			Run(func(callCtx context.Context, input *sqs.GetQueueAttributesInput, optFns ...func(*sqs.Options)) {
 				assert.Equal(t, ctx, callCtx)
 				assert.Equal(t, aws.String("https://sqs.local/000000000000/queue-a.fifo"), input.QueueUrl)
+				assert.ElementsMatch(t, []types.QueueAttributeName{
+					types.QueueAttributeNameCreatedTimestamp,
+					types.QueueAttributeNameApproximateNumberOfMessages,
+					types.QueueAttributeNameApproximateNumberOfMessagesNotVisible,
+					types.QueueAttributeNameKmsMasterKeyId,
+					types.QueueAttributeNameFifoQueue,
+					types.QueueAttributeNameContentBasedDeduplication,
+				}, input.AttributeNames)
 			}).
 			Return(&sqs.GetQueueAttributesOutput{
 				Attributes: map[string]string{
