@@ -5,12 +5,10 @@ on:
     branches: [ main ]
     tags: [ 'v*' ]
   workflow_dispatch:
-  pull_request: # FIXME: 削除
 
 permissions:
   contents: read
-  packages: write   # GHCR へ push に必要
-#  id-token: write   # （将来のSLSA/署名対応を見据えoptional）
+  packages: write
 
 jobs:
   docker:
