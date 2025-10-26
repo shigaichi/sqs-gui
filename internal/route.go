@@ -110,6 +110,9 @@ func (i RouteImpl) InitRoute() (http.Handler, error) {
 	}
 
 	mux.HandleFunc("/queues", i.h.QueuesHandler)
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/queues", http.StatusFound)
+	})
 	mux.HandleFunc("GET /create-queue", i.h.GetCreateQueueHandler)
 	mux.HandleFunc("POST /create-queue", i.h.PostCreateQueueHandler)
 	mux.HandleFunc("POST /queues/{url}/purge", i.h.PurgeQueueHandler)
