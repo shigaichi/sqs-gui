@@ -134,6 +134,15 @@ func (s *SqsServiceImpl) SendMessage(ctx context.Context, input SendMessageInput
 		return errors.New("message body is required")
 	}
 
+	isFIFO := strings.HasSuffix(queueURL, ".fifo")
+
+	messageGroupID := strings.TrimSpace(input.MessageGroupID)
+	if isFIFO && messageGroupID == "" {
+		return errors.New("message group id is required for fifo queues")
+	}
+
+	messageDeduplicationID := strings.TrimSpace(input.MessageDeduplicationID)
+
 	var delay *int32
 	if input.DelaySeconds != nil {
 		if *input.DelaySeconds < 0 || *input.DelaySeconds > 900 {
@@ -152,11 +161,12 @@ func (s *SqsServiceImpl) SendMessage(ctx context.Context, input SendMessageInput
 	}
 
 	return s.repo.SendMessage(ctx, SendMessageRepositoryInput{
-		QueueURL:       queueURL,
-		Body:           input.Body,
-		MessageGroupID: strings.TrimSpace(input.MessageGroupID),
-		DelaySeconds:   delay,
-		Attributes:     attributes,
+		QueueURL:               queueURL,
+		Body:                   input.Body,
+		MessageGroupID:         messageGroupID,
+		MessageDeduplicationID: messageDeduplicationID,
+		DelaySeconds:           delay,
+		Attributes:             attributes,
 	})
 }
 

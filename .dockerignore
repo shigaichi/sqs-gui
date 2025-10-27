@@ -1,0 +1,20 @@
+# VCS metadata
+.git
+
+# Node packages and caches
+node_modules
+pnpm-store
+
+# Build outputs
+sqs-gui
+dist
+coverage.out
+coverage.html
+
+# Dependency artifacts
+*.log
+npm-debug.log
+pnpm-debug.log
+
+# OS junk
+.DS_Store

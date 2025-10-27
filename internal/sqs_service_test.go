@@ -462,10 +462,11 @@ func TestSqsServiceImpl_SendMessage(t *testing.T) {
 			args: args{
 				ctx: context.Background(),
 				input: SendMessageInput{
-					QueueURL:       " https://sqs.local/queue ",
-					Body:           "event",
-					MessageGroupID: " group ",
-					DelaySeconds:   int32Ptr(10),
+					QueueURL:               " https://sqs.local/queue ",
+					Body:                   "event",
+					MessageGroupID:         " group ",
+					MessageDeduplicationID: " dedup-1 ",
+					DelaySeconds:           int32Ptr(10),
 					Attributes: []MessageAttribute{
 						{Name: " TraceId ", Value: "123"},
 						{Name: "", Value: "ignored"},
@@ -480,6 +481,7 @@ func TestSqsServiceImpl_SendMessage(t *testing.T) {
 						assert.Equal(t, "https://sqs.local/queue", input.QueueURL)
 						assert.Equal(t, "event", input.Body)
 						assert.Equal(t, "group", input.MessageGroupID)
+						assert.Equal(t, "dedup-1", input.MessageDeduplicationID)
 						if assert.NotNil(t, input.DelaySeconds) {
 							assert.Equal(t, int32(10), *input.DelaySeconds)
 						}
@@ -499,6 +501,20 @@ func TestSqsServiceImpl_SendMessage(t *testing.T) {
 				},
 			},
 			wantErr: "queue url is required",
+			assertMock: func(t *testing.T, repo *MockSqsRepository) {
+				repo.AssertNotCalled(t, "SendMessage", mock.Anything, mock.Anything)
+			},
+		},
+		{
+			name: "requires message group id for fifo queues",
+			args: args{
+				ctx: context.Background(),
+				input: SendMessageInput{
+					QueueURL: "https://sqs.local/queue.fifo",
+					Body:     "event",
+				},
+			},
+			wantErr: "message group id is required for fifo queues",
 			assertMock: func(t *testing.T, repo *MockSqsRepository) {
 				repo.AssertNotCalled(t, "SendMessage", mock.Anything, mock.Anything)
 			},

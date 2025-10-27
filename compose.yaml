@@ -1,9 +1,18 @@
 services:
   elasticmq:
-    image: softwaremill/elasticmq-native:1.6.15
+    image: softwaremill/elasticmq-native:latest
     container_name: elasticmq
     ports:
       - "9324:9324" # SQS-compatible REST API
       - "9325:9325" # Optional web UI
     volumes:
       - ./elasticmq.conf:/opt/elasticmq.conf:ro  # Startup configuration
+  gui:
+    image: ghcr.io/shigaichi/sqs-gui:latest
+    container_name: gui
+    ports:
+      - "8080:8080"
+    environment:
+      AWS_SQS_ENDPOINT: http://elasticmq:9324
+      AWS_ACCESS_KEY_ID: test          # dummy
+      AWS_SECRET_ACCESS_KEY: test      # dummy

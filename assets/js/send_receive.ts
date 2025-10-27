@@ -42,6 +42,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
 	const sendForm = page.querySelector<HTMLFormElement>("[data-send-form]");
 	const feedback = page.querySelector<HTMLElement>("[data-send-feedback]");
+	const supportsGroups = page.dataset.supportsGroups === "true";
+	const requiresDedup = page.dataset.requiresDedup === "true";
 	const addAttributeButton = page.querySelector<HTMLButtonElement>(
 		"[data-attribute-add]",
 	);
@@ -94,6 +96,20 @@ document.addEventListener("DOMContentLoaded", () => {
 	const messageTemplate = page.querySelector<HTMLTemplateElement>(
 		"#receive-message-template",
 	);
+	const messageGroupInput = sendForm?.querySelector<HTMLInputElement>(
+		'input[name="message_group_id"]',
+	);
+	const messageDedupInput = sendForm?.querySelector<HTMLInputElement>(
+		'input[name="message_deduplication_id"]',
+	);
+
+	if (supportsGroups && messageGroupInput) {
+		messageGroupInput.required = true;
+	}
+
+	if (messageDedupInput) {
+		messageDedupInput.required = requiresDedup;
+	}
 
 	const successClasses = ["border-green-400", "bg-green-50", "text-green-700"];
 	const errorClasses = ["border-red-400", "bg-red-50", "text-red-700"];
@@ -406,15 +422,40 @@ document.addEventListener("DOMContentLoaded", () => {
 		}
 
 		const attributes = gatherAttributes();
+
+		if (supportsGroups && messageGroupId === "") {
+			setFeedback(
+				"error",
+				"Message group ID is required when sending to a FIFO queue.",
+			);
+			return;
+		}
+
+		const messageDeduplicationId =
+			(formData.get("message_deduplication_id") as string | null)?.trim() ?? "";
+
+		if (requiresDedup && messageDeduplicationId === "") {
+			setFeedback(
+				"error",
+				"Message deduplication ID is required when content-based deduplication is disabled.",
+			);
+			return;
+		}
+
 		const payload: {
 			body: string;
 			messageGroupId?: string;
+			messageDeduplicationId?: string;
 			delaySeconds?: number;
 			attributes?: MessageAttribute[];
 		} = { body };
 
 		if (messageGroupId !== "") {
 			payload.messageGroupId = messageGroupId;
+		}
+
+		if (messageDeduplicationId !== "") {
+			payload.messageDeduplicationId = messageDeduplicationId;
 		}
 		if (delaySeconds !== null) {
 			payload.delaySeconds = delaySeconds;

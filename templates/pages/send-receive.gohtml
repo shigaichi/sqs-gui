@@ -1,5 +1,5 @@
 {{define "content"}}
-    <section class="space-y-8" data-page="send-receive" data-queue-url="{{.Queue.EscapedURL}}" data-supports-groups="{{if .Queue.SupportsMessageGroups}}true{{else}}false{{end}}">
+    <section class="space-y-8" data-page="send-receive" data-queue-url="{{.Queue.EscapedURL}}" data-supports-groups="{{if .Queue.SupportsMessageGroups}}true{{else}}false{{end}}" data-requires-dedup="{{if .Queue.RequiresMessageDeduplication}}true{{else}}false{{end}}">
         <div class="flex flex-col gap-4">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div class="space-y-2">
@@ -54,15 +54,34 @@
                         <input class="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                                id="message_group_id"
                                name="message_group_id"
-                               placeholder="{{if .Queue.SupportsMessageGroups}}Provide a group identifier for FIFO ordering{{else}}Not required for standard queues{{end}}" />
+                               placeholder="{{if .Queue.SupportsMessageGroups}}Provide a group identifier for FIFO ordering{{else}}Not required for standard queues{{end}}"
+                                {{if .Queue.SupportsMessageGroups}}required{{end}} />
                         <p class="text-xs text-slate-500">
                             {{if .Queue.SupportsMessageGroups}}
-                                Optional. Applies ordering within the group for FIFO queues.
+                                Required for FIFO queues to preserve ordering.
                             {{else}}
                                 Optional. Standard queues ignore message group IDs.
                             {{end}}
                         </p>
                     </div>
+
+                    {{if .Queue.SupportsMessageGroups}}
+                        <div class="space-y-1" data-dedup-field>
+                            <label class="text-sm font-medium text-slate-700" for="message_deduplication_id">Message deduplication ID</label>
+                            <input class="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                   id="message_deduplication_id"
+                                   name="message_deduplication_id"
+                                   placeholder="Provide a unique identifier to prevent duplicates"
+                                    {{if .Queue.RequiresMessageDeduplication}}required{{end}} />
+                            <p class="text-xs text-slate-500">
+                                {{if .Queue.RequiresMessageDeduplication}}
+                                    Required when content-based deduplication is disabled. Use a unique value per message.
+                                {{else}}
+                                    Optional. FIFO queues with content-based deduplication enabled can omit this value.
+                                {{end}}
+                            </p>
+                        </div>
+                    {{end}}
 
                     <div class="space-y-1">
                         <label class="text-sm font-medium text-slate-700" for="delivery_delay">Delivery delay (seconds)</label>

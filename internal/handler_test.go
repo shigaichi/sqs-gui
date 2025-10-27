@@ -699,9 +699,10 @@ func TestHandlerImpl_SendMessageAPI_Success(t *testing.T) {
 
 	queueURL := "https://sqs.local/queues/orders"
 	payload := sendMessageRequest{
-		Body:           "hello",
-		MessageGroupID: " group ",
-		DelaySeconds:   ptrInt32(5),
+		Body:                   "hello",
+		MessageGroupID:         " group ",
+		MessageDeduplicationID: " dedup-1 ",
+		DelaySeconds:           ptrInt32(5),
 		Attributes: []messageAttributePayload{
 			{Name: " id ", Value: "123"},
 			{Name: "", Value: "ignored"},
@@ -728,6 +729,9 @@ func TestHandlerImpl_SendMessageAPI_Success(t *testing.T) {
 					return false
 				}
 				if !assert.Equal(t, " group ", input.MessageGroupID) {
+					return false
+				}
+				if !assert.Equal(t, " dedup-1 ", input.MessageDeduplicationID) {
 					return false
 				}
 				if !assert.NotNil(t, input.DelaySeconds) || !assert.Equal(t, int32(5), *input.DelaySeconds) {
