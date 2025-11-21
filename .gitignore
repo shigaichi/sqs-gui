@@ -32,3 +32,10 @@ sqs-gui
 .vite
 coverage.html
 coverage.out
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/

@@ -11,10 +11,13 @@
 		"lint": "biome lint .",
 		"check": "biome check .",
 		"check:apply": "biome check --write .",
-		"ci": "biome ci ."
+		"ci": "biome ci .",
+		"test:e2e": "playwright test"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.2.4",
+		"@playwright/test": "^1.56.1",
+		"@types/node": "^24.10.1",
 		"typescript": "~5.8.3",
 		"vite": "^7.1.7"
 	},

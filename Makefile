@@ -9,6 +9,10 @@ COVHTML   := coverage.html
 build:
 	@go build -ldflags="-s -w" -o ./sqs-gui -trimpath ./cmd/main.go
 
+.PHONY: compose
+compose:
+	@docker compose up -d elasticmq
+
 .PHONY: test
 test:
 	@go test -v ./...
